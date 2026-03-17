@@ -1,0 +1,13 @@
+server:
+  listen_addr: 0.0.0.0
+  port: 443
+
+upstream:
+  base_url: https://open.bigmodel.cn/api/anthropic
+  api_key: "replace-with-your-api-key"
+  anthropic_version: "2023-06-01"
+
+tls:
+  cert_dir: certs
+  cert_file: cert.pem
+  key_file: key.pem
