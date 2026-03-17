@@ -22,17 +22,6 @@ pub struct MonitorEvent {
     pub data: Value,
 }
 
-pub async fn root() -> Json<Value> {
-    Json(json!({
-        "service": "airouter",
-        "endpoints": {
-            "messages": "/v1/messages",
-            "websocket": "/ws",
-            "healthz": "/healthz"
-        }
-    }))
-}
-
 pub async fn healthz() -> Json<Value> {
     Json(json!({ "ok": true }))
 }

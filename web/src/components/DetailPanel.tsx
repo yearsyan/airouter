@@ -1,0 +1,197 @@
+import { useState } from "react";
+import type { RequestRecord } from "../types";
+import JsonView from "./JsonView";
+
+interface Props {
+  request: RequestRecord;
+  onClose: () => void;
+}
+
+type Tab = "overview" | "request" | "response" | "events";
+
+export default function DetailPanel({ request, onClose }: Props) {
+  const [tab, setTab] = useState<Tab>("overview");
+
+  const reqHeaders = request.requestData?.headers as
+    | Record<string, string>
+    | undefined;
+  const reqBody = request.requestData?.body;
+
+  const respStatus = request.responseData?.status as number | undefined;
+  const respHeaders = request.responseData?.headers as
+    | Record<string, string>
+    | undefined;
+  const respBody = request.responseData?.body;
+  const respText = request.responseData?.text;
+
+  return (
+    <div className="panel-right">
+      <div className="panel-right-header">
+        <span className="panel-right-title">
+          {request.id.slice(0, 8)}
+          <span className={`badge badge-${request.status}`}>
+            {request.status}
+          </span>
+        </span>
+        <button className="btn-close" onClick={onClose}>
+          &times;
+        </button>
+      </div>
+
+      <div className="tab-bar">
+        {(["overview", "request", "response", "events"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            className={`tab ${tab === t ? "tab-active" : ""}`}
+            onClick={() => setTab(t)}
+          >
+            {t === "events" ? `events (${request.events.length})` : t}
+          </button>
+        ))}
+      </div>
+
+      <div className="panel-right-body">
+        {tab === "overview" && (
+          <div className="detail-meta">
+            <Row label="ID" value={request.id} mono />
+            <Row
+              label="Time"
+              value={new Date(request.timestamp).toLocaleString()}
+            />
+            {request.model && <Row label="Model" value={request.model} />}
+            {request.stream != null && (
+              <Row label="Stream" value={request.stream ? "yes" : "no"} />
+            )}
+            {respStatus != null && (
+              <Row label="HTTP Status" value={String(respStatus)} mono />
+            )}
+            {request.durationMs != null && (
+              <Row label="Duration" value={`${request.durationMs}ms`} mono />
+            )}
+            {request.usage && (
+              <>
+                <Row
+                  label="Input Tokens"
+                  value={String(request.usage.input_tokens)}
+                  mono
+                />
+                <Row
+                  label="Output Tokens"
+                  value={String(request.usage.output_tokens)}
+                  mono
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {tab === "request" && (
+          <>
+            {reqHeaders && (
+              <Section title="Headers">
+                <HeadersTable headers={reqHeaders} />
+              </Section>
+            )}
+            <Section title="Body">
+              <JsonView data={reqBody} />
+            </Section>
+          </>
+        )}
+
+        {tab === "response" && (
+          <>
+            {respStatus != null && (
+              <div className="detail-meta" style={{ marginBottom: 12 }}>
+                <Row label="Status" value={String(respStatus)} mono />
+              </div>
+            )}
+            {respHeaders && (
+              <Section title="Headers">
+                <HeadersTable headers={respHeaders} />
+              </Section>
+            )}
+            {respText && (
+              <Section title="Text">
+                <pre className="json-view">{String(respText)}</pre>
+              </Section>
+            )}
+            {respBody && (
+              <Section title="Body">
+                <JsonView data={respBody} />
+              </Section>
+            )}
+            {!respStatus && !respHeaders && !respBody && !respText && (
+              <div className="empty-sm">No response data yet.</div>
+            )}
+          </>
+        )}
+
+        {tab === "events" && (
+          <div className="event-timeline">
+            {request.events.map((event, i) => (
+              <div key={i} className="event-item">
+                <div className="event-item-header">
+                  <span className="event-kind">{event.kind}</span>
+                  <span className="event-time">
+                    {new Date(event.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <JsonView data={event.data} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="meta-row">
+      <span className="meta-label">{label}</span>
+      <span className={mono ? "cell-mono" : ""}>{value}</span>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="detail-section">
+      <h3>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function HeadersTable({ headers }: { headers: Record<string, string> }) {
+  const entries = Object.entries(headers);
+  if (entries.length === 0) return <div className="empty-sm">No headers</div>;
+
+  return (
+    <table className="headers-table">
+      <tbody>
+        {entries.map(([k, v]) => (
+          <tr key={k}>
+            <td className="header-name">{k}</td>
+            <td className="header-value">{v}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}

@@ -1,4 +1,5 @@
 mod config;
+mod embed;
 mod monitor;
 mod proxy;
 mod state;
@@ -18,7 +19,8 @@ use tracing::info;
 
 use crate::{
     config::{Config, ensure_self_signed_cert},
-    monitor::{healthz, root, ws_handler},
+    embed::static_handler,
+    monitor::{healthz, ws_handler},
     proxy::proxy_messages,
     state::AppState,
 };
@@ -45,10 +47,10 @@ async fn main() -> Result<()> {
     };
 
     let app = Router::new()
-        .route("/", get(root))
         .route("/healthz", get(healthz))
         .route("/ws", get(ws_handler))
         .route("/v1/messages", post(proxy_messages))
+        .fallback(static_handler)
         .with_state(state);
 
     info!(
