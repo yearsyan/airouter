@@ -20,14 +20,17 @@ export default function RoutesPage({ view, onViewChange }: Props) {
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [draft, setDraft] = useState<ModelRoute>(EMPTY_ROUTE);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchRoutes = useCallback(async () => {
     try {
       const res = await fetch("/api/routes");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setRoutes(data.routes ?? []);
-    } catch {
-      // ignore
+      setError(null);
+    } catch (e) {
+      setError(`Failed to load routes: ${e}`);
     } finally {
       setLoading(false);
     }
@@ -39,16 +42,21 @@ export default function RoutesPage({ view, onViewChange }: Props) {
 
   const saveRoutes = async (next: ModelRoute[]) => {
     setSaving(true);
+    setError(null);
     try {
-      await fetch("/api/routes", {
+      const res = await fetch("/api/routes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ routes: next }),
       });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`HTTP ${res.status}: ${body}`);
+      }
       setRoutes(next);
       setEditing(null);
-    } catch {
-      // ignore
+    } catch (e) {
+      setError(`Failed to save routes: ${e}`);
     } finally {
       setSaving(false);
     }
@@ -99,6 +107,8 @@ export default function RoutesPage({ view, onViewChange }: Props) {
             + Add Route
           </button>
         </div>
+
+        {error && <div className="routes-error">{error}</div>}
 
         {loading ? (
           <div className="empty">Loading...</div>

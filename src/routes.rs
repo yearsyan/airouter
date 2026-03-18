@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use axum::{
     extract::State,
@@ -11,7 +12,12 @@ use tracing::{error, info};
 
 use crate::state::AppState;
 
-const ROUTES_FILE: &str = "routes.json";
+/// Resolve routes.json to an absolute path based on cwd (same directory as config.yml).
+static ROUTES_PATH: LazyLock<PathBuf> = LazyLock::new(|| {
+    std::env::current_dir()
+        .unwrap_or_default()
+        .join("routes.json")
+});
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ModelRoute {
@@ -28,22 +34,25 @@ pub struct RoutesPayload {
 }
 
 pub fn load_routes() -> Vec<ModelRoute> {
-    let path = Path::new(ROUTES_FILE);
+    let path = &*ROUTES_PATH;
+    info!(path = %path.display(), "loading routes");
     if !path.exists() {
         return Vec::new();
     }
     match std::fs::read_to_string(path) {
         Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
         Err(err) => {
-            error!(?err, "failed to read routes file");
+            error!(?err, path = %path.display(), "failed to read routes file");
             Vec::new()
         }
     }
 }
 
 fn save_routes(routes: &[ModelRoute]) -> anyhow::Result<()> {
+    let path = &*ROUTES_PATH;
     let json = serde_json::to_string_pretty(routes)?;
-    std::fs::write(ROUTES_FILE, json)?;
+    std::fs::write(path, &json)?;
+    info!(path = %path.display(), count = routes.len(), "routes saved to disk");
     Ok(())
 }
 

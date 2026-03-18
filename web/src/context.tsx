@@ -71,6 +71,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
               ...existing,
               status: "completed",
               durationMs: event.data?.duration_ms as number,
+              ttftMs: event.data?.ttft_ms as number,
               usage: event.data?.usage as {
                 input_tokens: number;
                 output_tokens: number;

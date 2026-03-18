@@ -245,6 +245,9 @@ async fn proxy_streaming_response(
         }
     });
 
+    let first_chunk_time = Arc::new(std::sync::atomic::AtomicU64::new(u64::MAX));
+    let first_chunk_time_clone = Arc::clone(&first_chunk_time);
+
     let stream = stream! {
         let _guard = drop_guard;
         let mut collected = BytesMut::new();
@@ -277,6 +280,12 @@ async fn proxy_streaming_response(
             let chunk_text = String::from_utf8_lossy(&chunk).into_owned();
             collected.extend_from_slice(&chunk);
 
+            // Record TTFT (time to first token) on first chunk
+            if first_chunk_time_clone.load(std::sync::atomic::Ordering::Relaxed) == u64::MAX {
+                let ttft_ms = started_at.elapsed().as_millis() as u64;
+                first_chunk_time_clone.store(ttft_ms, std::sync::atomic::Ordering::Relaxed);
+            }
+
             broadcast_event(
                 &stream_state,
                 MonitorEvent {
@@ -294,6 +303,8 @@ async fn proxy_streaming_response(
         }
 
         let duration_ms = started_at.elapsed().as_millis();
+        let raw_ttft = first_chunk_time.load(std::sync::atomic::Ordering::Relaxed);
+        let ttft_ms = if raw_ttft == u64::MAX { 0 } else { raw_ttft };
         let body_text = String::from_utf8_lossy(&collected).into_owned();
         let (usage, content_preview, content_blocks) = summarize_sse(&body_text);
 
@@ -310,7 +321,8 @@ async fn proxy_streaming_response(
                     "stream_text": truncate_str(&content_preview, MAX_MONITOR_BODY),
                     "content_blocks": content_blocks,
                     "usage": usage,
-                    "duration_ms": duration_ms
+                    "duration_ms": duration_ms,
+                    "ttft_ms": ttft_ms
                 }),
             },
         );

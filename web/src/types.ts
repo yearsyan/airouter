@@ -13,6 +13,7 @@ export interface RequestRecord {
   stream?: boolean;
   status: "pending" | "streaming" | "completed" | "error";
   durationMs?: number;
+  ttftMs?: number;
   usage?: { input_tokens: number; output_tokens: number };
   requestData?: Record<string, unknown>;
   responseData?: Record<string, unknown>;

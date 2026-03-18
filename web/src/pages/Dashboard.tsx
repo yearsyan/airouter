@@ -82,7 +82,9 @@ export default function Dashboard({ view, onViewChange }: Props) {
                   <th>Stream</th>
                   <th>Status</th>
                   <th>Duration</th>
+                  <th>TTFT</th>
                   <th>Tokens</th>
+                  <th>TPS</th>
                 </tr>
               </thead>
               <tbody>
@@ -117,9 +119,20 @@ export default function Dashboard({ view, onViewChange }: Props) {
                       {req.durationMs != null ? `${req.durationMs}ms` : "-"}
                     </td>
                     <td className="cell-mono">
+                      {req.ttftMs != null && req.ttftMs > 0 ? `${req.ttftMs}ms` : "-"}
+                    </td>
+                    <td className="cell-mono">
                       {req.usage
                         ? `${req.usage.input_tokens} / ${req.usage.output_tokens}`
                         : "-"}
+                    </td>
+                    <td className="cell-mono">
+                      {(() => {
+                        if (!req.usage || !req.durationMs) return "-";
+                        const genMs = req.durationMs - (req.ttftMs ?? 0);
+                        if (genMs <= 0) return "-";
+                        return (req.usage.output_tokens / (genMs / 1000)).toFixed(1);
+                      })()}
                     </td>
                   </tr>
                 ))}

@@ -18,6 +18,10 @@ export default defineConfig({
         target: "https://localhost",
         secure: false,
       },
+      "/api": {
+        target: "https://localhost",
+        secure: false,
+      },
     },
   },
 });
