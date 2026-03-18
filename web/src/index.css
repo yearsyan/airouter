@@ -526,6 +526,271 @@ tbody tr.selected {
   color: var(--text-secondary);
 }
 
+/* ── Sub tabs (inside request/response tab) ─────────── */
+
+.sub-tab-bar {
+  display: flex;
+  gap: 0;
+  margin: 12px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.sub-tab {
+  padding: 4px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sub-tab:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.sub-tab:hover {
+  color: var(--text);
+  background: var(--bg-tertiary);
+}
+
+.sub-tab-active {
+  color: var(--accent);
+  background: var(--bg-secondary);
+}
+
+.detail-section-toggle {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-section-toggle:hover {
+  color: var(--text);
+}
+
+/* ── Request view ───────────────────────────────────── */
+
+.rv {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rv-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-chip {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.rv-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rv-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.rv-section-header:hover {
+  background: var(--bg-tertiary);
+}
+
+.rv-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.rv-section-title-static {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  padding: 0 0 8px;
+}
+
+.rv-section-body {
+  padding: 10px 12px;
+}
+
+.rv-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  color: var(--text);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.rv-system {
+  border-left: 3px solid var(--warning);
+}
+
+.rv-tools {
+  border-left: 3px solid var(--accent);
+}
+
+.rv-tools-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-tool-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.rv-tool-item:last-child {
+  border-bottom: none;
+}
+
+.rv-tool-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rv-tool-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.rv-tool-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.rv-tool-schema {
+  margin-top: 6px;
+}
+
+/* ── Messages ───────────────────────────────────────── */
+
+.rv-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rv-msg {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rv-msg-user {
+  border-left: 3px solid var(--accent);
+}
+
+.rv-msg-assistant {
+  border-left: 3px solid var(--success);
+}
+
+.rv-msg-role {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+.rv-msg-body {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rv-block-tag {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.rv-block-tag strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.rv-block-tool-use,
+.rv-block-tool-result {
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+}
+
+.rv-block-thinking {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  border-left: 3px solid var(--warning);
+}
+
+.rv-collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rv-collapse-header:hover {
+  background: var(--bg-tertiary);
+}
+
+.rv-collapse-body {
+  padding: 0 10px 8px;
+}
+
+.rv-block-image {
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+}
+
 /* ── Headers table ──────────────────────────────────── */
 
 .headers-table {

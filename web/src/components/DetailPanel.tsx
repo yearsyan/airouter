@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { RequestRecord } from "../types";
 import JsonView from "./JsonView";
+import RequestView from "./RequestView";
 import ResponseView, { type ContentBlock } from "./ResponseView";
 
 interface Props {
@@ -119,16 +120,10 @@ export default function DetailPanel({ request, onClose, width }: Props) {
         )}
 
         {tab === "request" && (
-          <>
-            {reqHeaders && (
-              <Section title="Headers">
-                <HeadersTable headers={reqHeaders} />
-              </Section>
-            )}
-            <Section title="Body">
-              <JsonView data={reqBody} />
-            </Section>
-          </>
+          <RequestTab
+            headers={reqHeaders}
+            body={reqBody}
+          />
         )}
 
         {tab === "response" && (
@@ -208,6 +203,47 @@ function Section({
       <h3>{title}</h3>
       {children}
     </div>
+  );
+}
+
+type ReqSub = "readable" | "raw";
+
+function RequestTab({
+  headers,
+  body,
+}: {
+  headers?: Record<string, string>;
+  body: unknown;
+}) {
+  const [sub, setSub] = useState<ReqSub>("readable");
+
+  return (
+    <>
+      {headers && (
+        <Section title="Headers">
+          <HeadersTable headers={headers} />
+        </Section>
+      )}
+      <div className="sub-tab-bar">
+        <button
+          className={`sub-tab ${sub === "readable" ? "sub-tab-active" : ""}`}
+          onClick={() => setSub("readable")}
+        >
+          Readable
+        </button>
+        <button
+          className={`sub-tab ${sub === "raw" ? "sub-tab-active" : ""}`}
+          onClick={() => setSub("raw")}
+        >
+          Raw JSON
+        </button>
+      </div>
+      {sub === "readable" && body && typeof body === "object" ? (
+        <RequestView body={body as Record<string, unknown>} />
+      ) : (
+        <JsonView data={body} />
+      )}
+    </>
   );
 }
 
