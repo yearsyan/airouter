@@ -1,15 +1,32 @@
 import { useState } from "react";
 import type { RequestRecord } from "../types";
 import JsonView from "./JsonView";
+import ResponseView, { type ContentBlock } from "./ResponseView";
 
 interface Props {
   request: RequestRecord;
   onClose: () => void;
+  width: number;
 }
 
-type Tab = "overview" | "request" | "response" | "events";
+type Tab = "overview" | "content" | "request" | "response" | "events";
 
-export default function DetailPanel({ request, onClose }: Props) {
+function getContentBlocks(request: RequestRecord): unknown[] {
+  // Streaming: content_blocks parsed by backend
+  const fromStream = request.responseData?.content_blocks;
+  if (Array.isArray(fromStream) && fromStream.length > 0) return fromStream;
+
+  // Non-streaming: body.content from API response
+  const body = request.responseData?.body;
+  if (body && typeof body === "object") {
+    const content = (body as Record<string, unknown>).content;
+    if (Array.isArray(content) && content.length > 0) return content;
+  }
+
+  return [];
+}
+
+export default function DetailPanel({ request, onClose, width }: Props) {
   const [tab, setTab] = useState<Tab>("overview");
 
   const reqHeaders = request.requestData?.headers as
@@ -24,8 +41,15 @@ export default function DetailPanel({ request, onClose }: Props) {
   const respBody = request.responseData?.body;
   const respText = request.responseData?.text;
 
+  const contentBlocks = getContentBlocks(request);
+  const hasContent = contentBlocks.length > 0;
+
+  const tabs: Tab[] = hasContent
+    ? ["overview", "content", "request", "response", "events"]
+    : ["overview", "request", "response", "events"];
+
   return (
-    <div className="panel-right">
+    <div className="panel-right" style={{ width }}>
       <div className="panel-right-header">
         <span className="panel-right-title">
           {request.id.slice(0, 8)}
@@ -39,7 +63,7 @@ export default function DetailPanel({ request, onClose }: Props) {
       </div>
 
       <div className="tab-bar">
-        {(["overview", "request", "response", "events"] as Tab[]).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             className={`tab ${tab === t ? "tab-active" : ""}`}
@@ -85,6 +109,10 @@ export default function DetailPanel({ request, onClose }: Props) {
           </div>
         )}
 
+        {tab === "content" && (
+          <ResponseView blocks={contentBlocks as ContentBlock[]} />
+        )}
+
         {tab === "request" && (
           <>
             {reqHeaders && (
@@ -112,7 +140,7 @@ export default function DetailPanel({ request, onClose }: Props) {
             )}
             {respText && (
               <Section title="Text">
-                <pre className="json-view">{String(respText)}</pre>
+                <pre className="code-block">{String(respText)}</pre>
               </Section>
             )}
             {respBody && (

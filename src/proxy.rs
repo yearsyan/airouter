@@ -214,7 +214,7 @@ async fn proxy_streaming_response(
 
         let duration_ms = started_at.elapsed().as_millis();
         let body_text = String::from_utf8_lossy(&collected).into_owned();
-        let (usage, content_preview) = summarize_sse(&body_text);
+        let (usage, content_preview, content_blocks) = summarize_sse(&body_text);
 
         broadcast_event(
             &stream_state,
@@ -227,6 +227,7 @@ async fn proxy_streaming_response(
                     "headers": headers_to_json(&stream_headers),
                     "body": truncate_str(&body_text, MAX_MONITOR_BODY),
                     "stream_text": truncate_str(&content_preview, MAX_MONITOR_BODY),
+                    "content_blocks": content_blocks,
                     "usage": usage,
                     "duration_ms": duration_ms
                 }),
@@ -315,9 +316,14 @@ fn extract_usage(value: &Value) -> Option<&Value> {
         .or_else(|| value.get("message").and_then(|v| v.get("usage")))
 }
 
-fn summarize_sse(body: &str) -> (Value, String) {
+fn summarize_sse(body: &str) -> (Value, String, Value) {
     let mut usage = Value::Null;
     let mut text = String::new();
+    let mut blocks: Vec<Value> = Vec::new();
+    let mut cur_block: Option<Value> = None;
+    let mut cur_text = String::new();
+    let mut cur_thinking = String::new();
+    let mut cur_json = String::new();
 
     for line in body.lines() {
         let payload = match line.strip_prefix("data:") {
@@ -329,26 +335,81 @@ fn summarize_sse(body: &str) -> (Value, String) {
             continue;
         }
 
-        if let Ok(value) = serde_json::from_str::<Value>(payload) {
-            if usage.is_null() {
-                if let Some(found) = extract_usage(&value) {
-                    usage = found.clone();
-                }
-            } else if let Some(found) = extract_usage(&value) {
-                usage = found.clone();
-            }
+        let Ok(value) = serde_json::from_str::<Value>(payload) else {
+            continue;
+        };
 
-            if let Some(delta) = value
-                .get("delta")
-                .and_then(|delta| delta.get("text"))
-                .and_then(Value::as_str)
-            {
-                text.push_str(delta);
+        if let Some(found) = extract_usage(&value) {
+            usage = found.clone();
+        }
+
+        // Always collect delta.text for backward compat (some upstreams
+        // don't emit content_block_start/stop wrapper events).
+        if let Some(t) = value
+            .get("delta")
+            .and_then(|d| d.get("text"))
+            .and_then(Value::as_str)
+        {
+            text.push_str(t);
+        }
+
+        let event_type = value.get("type").and_then(Value::as_str).unwrap_or("");
+
+        match event_type {
+            "content_block_start" => {
+                cur_text.clear();
+                cur_thinking.clear();
+                cur_json.clear();
+                cur_block = value.get("content_block").cloned();
             }
+            "content_block_delta" => {
+                if let Some(delta) = value.get("delta") {
+                    match delta.get("type").and_then(Value::as_str).unwrap_or("") {
+                        "text_delta" => {
+                            if let Some(t) = delta.get("text").and_then(Value::as_str) {
+                                cur_text.push_str(t);
+                            }
+                        }
+                        "thinking_delta" => {
+                            if let Some(t) = delta.get("thinking").and_then(Value::as_str) {
+                                cur_thinking.push_str(t);
+                            }
+                        }
+                        "input_json_delta" => {
+                            if let Some(j) = delta.get("partial_json").and_then(Value::as_str) {
+                                cur_json.push_str(j);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            "content_block_stop" => {
+                if let Some(mut block) = cur_block.take() {
+                    match block.get("type").and_then(Value::as_str).unwrap_or("") {
+                        "text" => {
+                            block["text"] = Value::String(cur_text.clone());
+                        }
+                        "thinking" => {
+                            block["thinking"] = Value::String(cur_thinking.clone());
+                        }
+                        "tool_use" => {
+                            block["input"] = serde_json::from_str(&cur_json)
+                                .unwrap_or(Value::Null);
+                        }
+                        _ => {}
+                    }
+                    blocks.push(block);
+                }
+                cur_text.clear();
+                cur_thinking.clear();
+                cur_json.clear();
+            }
+            _ => {}
         }
     }
 
-    (usage, text)
+    (usage, text, Value::Array(blocks))
 }
 
 fn truncate_str(value: &str, max_len: usize) -> String {
@@ -364,7 +425,10 @@ fn truncate_str(value: &str, max_len: usize) -> String {
 fn build_response(status: reqwest::StatusCode, headers: &HeaderMap, body: Body) -> Response<Body> {
     let mut response = Response::builder().status(status.as_u16());
     for (name, value) in headers {
-        if is_hop_by_hop_header(name) || *name == CONTENT_LENGTH {
+        if is_hop_by_hop_header(name)
+            || *name == CONTENT_LENGTH
+            || *name == "content-encoding"
+        {
             continue;
         }
         response = response.header(name, value);
@@ -426,7 +490,7 @@ mod tests {
             "data: [DONE]\n"
         );
 
-        let (usage, text) = summarize_sse(input);
+        let (usage, text, _blocks) = summarize_sse(input);
         assert_eq!(text, "Hello world");
         assert_eq!(usage, json!({"output_tokens": 34}));
     }

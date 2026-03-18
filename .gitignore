@@ -1,5 +1,9 @@
 /target
 /certs
 /config.yml
+
+# web
 /web/node_modules
 /web/dist
+*.tsbuildinfo
+*.local

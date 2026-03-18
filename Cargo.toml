@@ -14,7 +14,7 @@ chrono = { version = "0.4", features = ["clock", "serde"] }
 futures-util = "0.3"
 http = "1"
 rcgen = "0.13"
-reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "json", "rustls-tls", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["charset", "gzip", "http2", "json", "rustls-tls", "stream"] }
 rustls = { version = "0.23", features = ["aws-lc-rs"] }
 rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }

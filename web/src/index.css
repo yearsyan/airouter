@@ -1,4 +1,7 @@
-:root {
+/* ── Theme: Dark (default) ──────────────────────────── */
+
+:root,
+[data-theme="dark"] {
   --bg: #0d1117;
   --bg-secondary: #161b22;
   --bg-tertiary: #1c2129;
@@ -9,10 +12,57 @@
   --success: #3fb950;
   --error: #f85149;
   --warning: #d29922;
+  --jv-key: #79c0ff;
+  --jv-str: #a5d6ff;
+  --jv-num: #ffa657;
+  --jv-bool: #ff7b72;
+  --jv-null: #8b949e;
   --header-h: 49px;
   --font-mono: "SF Mono", Monaco, Inconsolata, "Fira Mono",
     "Droid Sans Mono", "Courier New", monospace;
 }
+
+/* ── Theme: Light ──────────────────────────────────── */
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eaeef2;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text-secondary: #656d76;
+  --accent: #0969da;
+  --success: #1a7f37;
+  --error: #cf222e;
+  --warning: #9a6700;
+  --jv-key: #0550ae;
+  --jv-str: #0a3069;
+  --jv-num: #953800;
+  --jv-bool: #cf222e;
+  --jv-null: #6e7781;
+}
+
+/* ── Theme: Dim ────────────────────────────────────── */
+
+[data-theme="dim"] {
+  --bg: #1e1e2e;
+  --bg-secondary: #24243e;
+  --bg-tertiary: #2a2a4a;
+  --border: #3b3b5c;
+  --text: #cdd6f4;
+  --text-secondary: #7f849c;
+  --accent: #89b4fa;
+  --success: #a6e3a1;
+  --error: #f38ba8;
+  --warning: #f9e2af;
+  --jv-key: #89b4fa;
+  --jv-str: #a6e3a1;
+  --jv-num: #fab387;
+  --jv-bool: #cba6f7;
+  --jv-null: #7f849c;
+}
+
+/* ── Reset ──────────────────────────────────────────── */
 
 * {
   margin: 0;
@@ -95,6 +145,108 @@ body {
   border-color: var(--text-secondary);
 }
 
+/* ── Theme switcher ─────────────────────────────────── */
+
+.theme-switcher {
+  position: relative;
+}
+
+.theme-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.theme-trigger:hover {
+  border-color: var(--text-secondary);
+  color: var(--text);
+}
+
+.theme-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.theme-chevron {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform 0.15s;
+}
+
+.theme-chevron-open {
+  transform: rotate(180deg);
+}
+
+.theme-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 120px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.theme-option:hover {
+  background: var(--bg-tertiary);
+}
+
+.theme-option-active {
+  color: var(--accent);
+}
+
+.theme-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.theme-swatch-dark {
+  background: #0d1117;
+}
+
+.theme-swatch-light {
+  background: #ffffff;
+}
+
+.theme-swatch-dim {
+  background: #1e1e2e;
+}
+
 /* ── Split layout ───────────────────────────────────── */
 
 .layout {
@@ -109,12 +261,24 @@ body {
 }
 
 .panel-right {
-  width: 520px;
   flex-shrink: 0;
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   background: var(--bg);
+}
+
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent);
 }
 
 .panel-right-header {
@@ -362,9 +526,9 @@ tbody tr.selected {
   color: var(--text);
 }
 
-/* ── JSON viewer ────────────────────────────────────── */
+/* ── Code block (plain text) ────────────────────────── */
 
-.json-view {
+.code-block {
   padding: 12px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -372,12 +536,283 @@ tbody tr.selected {
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.6;
-  overflow-x: auto;
+  overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--text);
   max-height: 400px;
+}
+
+/* ── JSON tree viewer ───────────────────────────────── */
+
+.jv {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow: auto;
+  max-height: 500px;
+}
+
+.jv-line {
+  white-space: nowrap;
+}
+
+.jv-toggle-line {
+  cursor: pointer;
+}
+
+.jv-toggle-line:hover {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+
+.jv-arrow {
+  display: inline-block;
+  width: 14px;
+  font-size: 9px;
+  color: var(--text-secondary);
+  text-align: center;
+  user-select: none;
+}
+
+.jv-children {
+  padding-left: 20px;
+  border-left: 1px solid var(--border);
+  margin-left: 6px;
+}
+
+.jv-key {
+  color: var(--jv-key);
+}
+
+.jv-str {
+  color: var(--jv-str);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.jv-num {
+  color: var(--jv-num);
+}
+
+.jv-bool {
+  color: var(--jv-bool);
+}
+
+.jv-null {
+  color: var(--jv-null);
+  font-style: italic;
+}
+
+.jv-punct {
+  color: var(--text-secondary);
+}
+
+.jv-preview {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 11px;
+  margin: 0 4px;
+}
+
+.jv-expand-btn {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  vertical-align: middle;
+  line-height: 1.6;
+  transition: all 0.15s;
+}
+
+.jv-expand-btn:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ── Modal ──────────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  width: 90vw;
+  max-width: 800px;
+  max-height: 85vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--jv-str);
+  margin: 0;
+}
+
+/* ── Content blocks ─────────────────────────────────── */
+
+.cb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cb {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.cb-thinking {
+  border-left: 3px solid var(--warning);
+}
+
+.cb-text {
+  border-left: 3px solid var(--success);
+}
+
+.cb-tool {
+  border-left: 3px solid var(--accent);
+}
+
+.cb-fallback {
+  border-left: 3px solid var(--text-secondary);
+}
+
+.cb-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.cb-header:hover {
+  background: var(--bg-tertiary);
+}
+
+.cb-arrow {
+  font-size: 9px;
+  color: var(--text-secondary);
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.cb-tag {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  padding: 8px 12px 4px;
+}
+
+.cb-header .cb-tag {
+  padding: 0;
+}
+
+.cb-thinking .cb-tag {
+  color: var(--warning);
+}
+
+.cb-text .cb-tag {
+  color: var(--success);
+}
+
+.cb-tool .cb-tag {
+  color: var(--accent);
+}
+
+.cb-tool .cb-tag strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.cb-preview {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.cb-secondary {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.cb-body {
+  padding: 0 12px 10px;
+}
+
+.cb-content {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 400px;
   overflow-y: auto;
+  color: var(--text);
+}
+
+.cb-expand {
+  display: inline-block;
+  margin-top: 8px;
+  margin-left: 0;
 }
 
 /* ── Event timeline ─────────────────────────────────── */
@@ -415,7 +850,7 @@ tbody tr.selected {
   font-family: var(--font-mono);
 }
 
-.event-item .json-view {
+.event-item .jv {
   font-size: 11px;
   padding: 8px;
   max-height: 200px;

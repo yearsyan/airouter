@@ -1,20 +1,57 @@
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useEvents } from "../context";
 import DetailPanel from "../components/DetailPanel";
+import ThemeSwitcher from "../components/ThemeSwitcher";
+
+const MIN_PANEL = 320;
+const MAX_PANEL = 960;
+const DEFAULT_PANEL = 520;
 
 export default function Dashboard() {
   const { requests, connected, clear } = useEvents();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL);
+  const dragging = useRef(false);
 
   const selected = selectedId
     ? requests.find((r) => r.id === selectedId)
     : undefined;
+
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      dragging.current = true;
+      const startX = e.clientX;
+      const startW = panelWidth;
+
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!dragging.current) return;
+        const w = startW - (ev.clientX - startX);
+        setPanelWidth(Math.max(MIN_PANEL, Math.min(MAX_PANEL, w)));
+      };
+
+      const onMouseUp = () => {
+        dragging.current = false;
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    },
+    [panelWidth],
+  );
 
   return (
     <div className="app">
       <header className="header">
         <h1>airouter</h1>
         <div className="header-actions">
+          <ThemeSwitcher />
           <span
             className={`status ${connected ? "connected" : "disconnected"}`}
           >
@@ -83,10 +120,14 @@ export default function Dashboard() {
         </div>
 
         {selected && (
-          <DetailPanel
-            request={selected}
-            onClose={() => setSelectedId(null)}
-          />
+          <>
+            <div className="resize-handle" onMouseDown={onMouseDown} />
+            <DetailPanel
+              request={selected}
+              onClose={() => setSelectedId(null)}
+              width={panelWidth}
+            />
+          </>
         )}
       </div>
     </div>
