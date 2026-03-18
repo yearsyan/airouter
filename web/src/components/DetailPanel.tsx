@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import type { RequestRecord } from "../types";
 import JsonView from "./JsonView";
 import ResponseView, { type ContentBlock } from "./ResponseView";
@@ -210,16 +210,68 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
   const entries = Object.entries(headers);
   if (entries.length === 0) return <div className="empty-sm">No headers</div>;
 
+  const [ctxMenu, setCtxMenu] = useState<{
+    x: number;
+    y: number;
+    key: string;
+    value: string;
+  } | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, key: string, value: string) => {
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY, key, value });
+  };
+
+  const closeMenu = () => setCtxMenu(null);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    closeMenu();
+  };
+
+  React.useEffect(() => {
+    if (!ctxMenu) return;
+    const onClick = () => closeMenu();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [ctxMenu]);
+
   return (
-    <table className="headers-table">
-      <tbody>
-        {entries.map(([k, v]) => (
-          <tr key={k}>
-            <td className="header-name">{k}</td>
-            <td className="header-value">{v}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <table className="headers-table">
+        <tbody>
+          {entries.map(([k, v]) => (
+            <tr key={k} onContextMenu={(e) => handleContextMenu(e, k, v)}>
+              <td className="header-name">{k}</td>
+              <td className="header-value">{v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {ctxMenu && (
+        <div
+          className="ctx-menu"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button onClick={() => copyToClipboard(ctxMenu.key)}>
+            Copy Name
+          </button>
+          <button onClick={() => copyToClipboard(ctxMenu.value)}>
+            Copy Value
+          </button>
+          <button onClick={() => copyToClipboard(`${ctxMenu.key}: ${ctxMenu.value}`)}>
+            Copy Entry
+          </button>
+        </div>
+      )}
+    </>
   );
 }

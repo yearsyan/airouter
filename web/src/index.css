@@ -526,6 +526,45 @@ tbody tr.selected {
   color: var(--text);
 }
 
+.headers-table tr {
+  cursor: default;
+}
+
+.headers-table tr:hover {
+  background: var(--bg-tertiary);
+}
+
+/* ── Context menu ────────────────────────────────────── */
+
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 140px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.ctx-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ctx-menu button:hover {
+  background: var(--bg-tertiary);
+}
+
 /* ── Code block (plain text) ────────────────────────── */
 
 .code-block {

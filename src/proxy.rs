@@ -1,4 +1,4 @@
-use std::{borrow::Cow, io};
+use std::{borrow::Cow, io, sync::Arc};
 
 use async_stream::stream;
 use axum::{
@@ -180,7 +180,31 @@ async fn proxy_streaming_response(
     let stream_request_id = request_id.clone();
     let stream_headers = response_headers.clone();
 
+    // Shared state for the drop guard: tracks whether stream finished normally.
+    let completed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let guard_completed = Arc::clone(&completed);
+    let guard_state = state.clone();
+    let guard_request_id = request_id.clone();
+    let guard_started = started_at;
+
+    // Drop guard: if stream is dropped without completing (client disconnect),
+    // broadcast a disconnect error so the request doesn't stay "streaming" forever.
+    let drop_guard = scopeguard::guard((), move |()| {
+        if !guard_completed.load(std::sync::atomic::Ordering::Relaxed) {
+            broadcast_error(
+                &guard_state,
+                &guard_request_id,
+                guard_started.elapsed().as_millis(),
+                &json!({
+                    "type": "client_disconnected",
+                    "message": "downstream client disconnected before stream completed"
+                }),
+            );
+        }
+    });
+
     let stream = stream! {
+        let _guard = drop_guard;
         let mut collected = BytesMut::new();
 
         while let Some(next_chunk) = upstream_stream.next().await {
@@ -188,6 +212,21 @@ async fn proxy_streaming_response(
                 Ok(chunk) => chunk,
                 Err(err) => {
                     error!(?err, request_id = %stream_request_id, "failed to read upstream stream");
+                    let duration_ms = started_at.elapsed().as_millis();
+                    let body_text = String::from_utf8_lossy(&collected).into_owned();
+                    let (_usage, content_preview, content_blocks) = summarize_sse(&body_text);
+                    broadcast_error(
+                        &stream_state,
+                        &stream_request_id,
+                        duration_ms,
+                        &json!({
+                            "type": "upstream_stream_error",
+                            "message": err.to_string(),
+                            "partial_text": truncate_str(&content_preview, MAX_MONITOR_BODY),
+                            "content_blocks": content_blocks
+                        }),
+                    );
+                    completed.store(true, std::sync::atomic::Ordering::Relaxed);
                     yield Err::<Bytes, io::Error>(io::Error::other(err.to_string()));
                     return;
                 }
@@ -233,6 +272,8 @@ async fn proxy_streaming_response(
                 }),
             },
         );
+
+        completed.store(true, std::sync::atomic::Ordering::Relaxed);
     };
 
     build_response(status, &response_headers, Body::from_stream(stream))
