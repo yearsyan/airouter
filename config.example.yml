@@ -4,6 +4,7 @@ server:
 
 upstream:
   base_url: https://open.bigmodel.cn/api/anthropic
+  model: glm-4-plus            # default model sent to upstream (replaces client model)
   api_key: "replace-with-your-api-key"
   anthropic_version: "2023-06-01"
 

@@ -26,6 +26,9 @@ pub struct ModelRoute {
     pub output_model: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    /// "authorization" (default, sends Bearer) or "x-api-key"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_header: Option<String>,
 }
 
 #[derive(Deserialize)]

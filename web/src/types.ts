@@ -25,4 +25,5 @@ export interface ModelRoute {
   upstream_url: string;
   output_model: string;
   api_key?: string;
+  auth_header?: string;
 }

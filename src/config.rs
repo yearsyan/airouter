@@ -20,7 +20,10 @@ const DEFAULT_KEY_FILE: &str = "key.pem";
 pub struct Config {
     pub listen_addr: SocketAddr,
     pub upstream_base_url: String,
+    pub upstream_model: Option<String>,
     pub api_key: Option<String>,
+    /// "authorization" (default) or "x-api-key"
+    pub auth_header: String,
     pub anthropic_version: String,
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
@@ -65,10 +68,18 @@ impl Config {
                 .unwrap_or_else(|| DEFAULT_UPSTREAM_BASE_URL.to_string())
                 .trim_end_matches('/')
                 .to_string(),
+            upstream_model: raw
+                .upstream
+                .model
+                .filter(|value| !value.trim().is_empty()),
             api_key: raw
                 .upstream
                 .api_key
                 .filter(|value| !value.trim().is_empty()),
+            auth_header: raw
+                .upstream
+                .auth_header
+                .unwrap_or_else(|| "authorization".to_string()),
             anthropic_version: raw
                 .upstream
                 .anthropic_version
@@ -98,7 +109,9 @@ struct ServerConfig {
 #[derive(Debug, Default, Deserialize)]
 struct UpstreamConfig {
     base_url: Option<String>,
+    model: Option<String>,
     api_key: Option<String>,
+    auth_header: Option<String>,
     anthropic_version: Option<String>,
 }
 

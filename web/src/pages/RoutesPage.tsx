@@ -12,6 +12,7 @@ const EMPTY_ROUTE: ModelRoute = {
   upstream_url: "",
   output_model: "",
   api_key: "",
+  auth_header: "",
 };
 
 export default function RoutesPage({ view, onViewChange }: Props) {
@@ -78,6 +79,7 @@ export default function RoutesPage({ view, onViewChange }: Props) {
     if (!draft.input_model || !draft.upstream_url || !draft.output_model) return;
     const cleaned = { ...draft };
     if (!cleaned.api_key) delete cleaned.api_key;
+    if (!cleaned.auth_header) delete cleaned.auth_header;
 
     if (editing === "new") {
       saveRoutes([...routes, cleaned]);
@@ -120,6 +122,7 @@ export default function RoutesPage({ view, onViewChange }: Props) {
                 <th>Output Model</th>
                 <th>Upstream URL</th>
                 <th>API Key</th>
+                <th>Auth</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -141,6 +144,9 @@ export default function RoutesPage({ view, onViewChange }: Props) {
                     <td className="cell-mono cell-url">{route.upstream_url}</td>
                     <td className="cell-mono">
                       {route.api_key ? "****" : "-"}
+                    </td>
+                    <td className="cell-mono">
+                      {route.auth_header || "authorization"}
                     </td>
                     <td className="cell-actions">
                       <button
@@ -172,7 +178,7 @@ export default function RoutesPage({ view, onViewChange }: Props) {
               )}
               {routes.length === 0 && editing === null && (
                 <tr>
-                  <td colSpan={5} className="empty-sm">
+                  <td colSpan={6} className="empty-sm">
                     No routes configured. All requests go to the default
                     upstream.
                   </td>
@@ -236,6 +242,16 @@ function EditRow({
           value={draft.api_key ?? ""}
           onChange={(e) => set("api_key", e.target.value)}
         />
+      </td>
+      <td>
+        <select
+          className="input"
+          value={draft.auth_header || "authorization"}
+          onChange={(e) => set("auth_header", e.target.value)}
+        >
+          <option value="authorization">Authorization</option>
+          <option value="x-api-key">x-api-key</option>
+        </select>
       </td>
       <td className="cell-actions">
         <button className="btn-sm btn-save" onClick={onSave} disabled={saving}>

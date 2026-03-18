@@ -52,16 +52,24 @@ pub async fn proxy_messages(
         crate::routes::find_route(&routes, &input_model)
     };
 
-    let (upstream_url, output_model, api_key) = match &route {
+    let (upstream_url, output_model, api_key, auth_header) = match &route {
         Some(r) => (
             format!("{}/v1/messages", r.upstream_url),
             r.output_model.clone(),
             r.api_key.clone(),
+            r.auth_header
+                .clone()
+                .unwrap_or_else(|| state.config.auth_header.clone()),
         ),
         None => (
             format!("{}/v1/messages", state.config.upstream_base_url),
-            input_model.clone(),
+            state
+                .config
+                .upstream_model
+                .clone()
+                .unwrap_or_else(|| input_model.clone()),
             state.config.api_key.clone(),
+            state.config.auth_header.clone(),
         ),
     };
 
@@ -105,7 +113,7 @@ pub async fn proxy_messages(
     );
 
     let mut upstream_headers = filter_request_headers(&headers);
-    apply_default_headers(&state, &mut upstream_headers, api_key.as_deref());
+    apply_default_headers(&state, &mut upstream_headers, api_key.as_deref(), &auth_header);
 
     let upstream_response = match state
         .client
@@ -349,7 +357,12 @@ fn filter_request_headers(headers: &HeaderMap) -> HeaderMap {
     filtered
 }
 
-fn apply_default_headers(state: &AppState, headers: &mut HeaderMap, api_key: Option<&str>) {
+fn apply_default_headers(
+    state: &AppState,
+    headers: &mut HeaderMap,
+    api_key: Option<&str>,
+    auth_header: &str,
+) {
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
     if let Ok(version) = HeaderValue::from_str(&state.config.anthropic_version) {
@@ -358,8 +371,18 @@ fn apply_default_headers(state: &AppState, headers: &mut HeaderMap, api_key: Opt
 
     let key = api_key.or(state.config.api_key.as_deref());
     if let Some(key) = key {
-        if let Ok(value) = HeaderValue::from_str(key) {
-            headers.insert(HeaderName::from_static("x-api-key"), value);
+        match auth_header {
+            "x-api-key" => {
+                if let Ok(value) = HeaderValue::from_str(key) {
+                    headers.insert(HeaderName::from_static("x-api-key"), value);
+                }
+            }
+            _ => {
+                // Default: Authorization: Bearer
+                if let Ok(value) = HeaderValue::from_str(&format!("Bearer {key}")) {
+                    headers.insert(HeaderName::from_static("authorization"), value);
+                }
+            }
         }
     }
 }
