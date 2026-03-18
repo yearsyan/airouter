@@ -2,6 +2,7 @@ mod config;
 mod embed;
 mod monitor;
 mod proxy;
+mod routes;
 mod state;
 
 use std::sync::Arc;
@@ -14,7 +15,7 @@ use axum::{
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::Client;
 use rustls::crypto::aws_lc_rs;
-use tokio::sync::broadcast;
+use tokio::sync::{RwLock, broadcast};
 use tracing::info;
 
 use crate::{
@@ -22,6 +23,7 @@ use crate::{
     embed::static_handler,
     monitor::{healthz, ws_handler},
     proxy::proxy_messages,
+    routes::{get_routes, load_routes, put_routes},
     state::AppState,
 };
 
@@ -40,16 +42,21 @@ async fn main() -> Result<()> {
         .context("failed to build reqwest client")?;
     let (broadcaster, _) = broadcast::channel(512);
 
+    let model_routes = load_routes();
+    info!(count = model_routes.len(), "loaded model routes");
+
     let state = AppState {
         client,
         config: Arc::clone(&config),
         broadcaster,
+        routes: Arc::new(RwLock::new(model_routes)),
     };
 
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/ws", get(ws_handler))
         .route("/v1/messages", post(proxy_messages))
+        .route("/api/routes", get(get_routes).put(put_routes))
         .fallback(static_handler)
         .with_state(state);
 

@@ -8,7 +8,8 @@ export interface MonitorEvent {
 export interface RequestRecord {
   id: string;
   timestamp: string;
-  model?: string;
+  inputModel?: string;
+  outputModel?: string;
   stream?: boolean;
   status: "pending" | "streaming" | "completed" | "error";
   durationMs?: number;
@@ -16,4 +17,11 @@ export interface RequestRecord {
   requestData?: Record<string, unknown>;
   responseData?: Record<string, unknown>;
   events: MonitorEvent[];
+}
+
+export interface ModelRoute {
+  input_model: string;
+  upstream_url: string;
+  output_model: string;
+  api_key?: string;
 }

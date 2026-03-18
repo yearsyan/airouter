@@ -1,13 +1,18 @@
 import { useState, useCallback, useRef } from "react";
 import { useEvents } from "../context";
+import { Header } from "../App";
 import DetailPanel from "../components/DetailPanel";
-import ThemeSwitcher from "../components/ThemeSwitcher";
 
 const MIN_PANEL = 320;
 const MAX_PANEL = 960;
 const DEFAULT_PANEL = 520;
 
-export default function Dashboard() {
+interface Props {
+  view: "monitor" | "routes";
+  onViewChange: (v: "monitor" | "routes") => void;
+}
+
+export default function Dashboard({ view, onViewChange }: Props) {
   const { requests, connected, clear } = useEvents();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL);
@@ -48,22 +53,18 @@ export default function Dashboard() {
 
   return (
     <div className="app">
-      <header className="header">
-        <h1>airouter</h1>
-        <div className="header-actions">
-          <ThemeSwitcher />
-          <span
-            className={`status ${connected ? "connected" : "disconnected"}`}
-          >
-            {connected ? "Connected" : "Disconnected"}
-          </span>
-          {requests.length > 0 && (
-            <button onClick={clear} className="btn-clear">
-              Clear
-            </button>
-          )}
-        </div>
-      </header>
+      <Header view={view} onViewChange={onViewChange}>
+        <span
+          className={`status ${connected ? "connected" : "disconnected"}`}
+        >
+          {connected ? "Connected" : "Disconnected"}
+        </span>
+        {requests.length > 0 && (
+          <button onClick={clear} className="btn-clear">
+            Clear
+          </button>
+        )}
+      </Header>
 
       <div className="layout">
         <div className="panel-left">
@@ -76,8 +77,8 @@ export default function Dashboard() {
               <thead>
                 <tr>
                   <th>Time</th>
-                  <th>Request ID</th>
-                  <th>Model</th>
+                  <th>Input Model</th>
+                  <th>Output Model</th>
                   <th>Stream</th>
                   <th>Status</th>
                   <th>Duration</th>
@@ -96,8 +97,16 @@ export default function Dashboard() {
                     <td className="cell-mono">
                       {new Date(req.timestamp).toLocaleTimeString()}
                     </td>
-                    <td className="cell-mono cell-id">{req.id.slice(0, 8)}</td>
-                    <td>{req.model || "-"}</td>
+                    <td>{req.inputModel || "-"}</td>
+                    <td>
+                      {req.outputModel && req.outputModel !== req.inputModel ? (
+                        <span className="model-redirected">
+                          {req.outputModel}
+                        </span>
+                      ) : (
+                        req.outputModel || "-"
+                      )}
+                    </td>
                     <td>{req.stream ? "yes" : "no"}</td>
                     <td>
                       <span className={`badge badge-${req.status}`}>

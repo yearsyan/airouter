@@ -1,6 +1,7 @@
 /target
 /certs
 /config.yml
+/routes.json
 
 # web
 /web/node_modules

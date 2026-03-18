@@ -94,10 +94,42 @@ body {
   z-index: 10;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 .header h1 {
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+.header-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nav-btn:hover {
+  color: var(--text);
+  background: var(--bg-tertiary);
+}
+
+.nav-btn-active {
+  color: var(--accent);
+  background: var(--bg-tertiary);
 }
 
 .header-actions {
@@ -893,4 +925,147 @@ tbody tr.selected {
   font-size: 11px;
   padding: 8px;
   max-height: 200px;
+}
+
+/* ── Model redirect indicator ───────────────────────── */
+
+.model-redirected {
+  color: var(--warning);
+}
+
+/* ── Routes page ────────────────────────────────────── */
+
+.routes-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.routes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.routes-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.routes-table {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.routes-table th {
+  background: var(--bg-secondary);
+}
+
+.routes-table td {
+  font-size: 13px;
+}
+
+.cell-url {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-actions {
+  white-space: nowrap;
+  display: flex;
+  gap: 6px;
+}
+
+.edit-row td {
+  padding: 6px 8px;
+}
+
+/* ── Buttons & inputs ───────────────────────────────── */
+
+.btn-primary {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-primary:hover {
+  opacity: 0.85;
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn-sm {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-sm:hover {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
+
+.btn-sm:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn-danger {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.btn-danger:hover {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--error);
+}
+
+.btn-save {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.btn-save:hover {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--success);
+}
+
+.input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.5;
 }

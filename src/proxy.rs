@@ -32,15 +32,56 @@ pub async fn proxy_messages(
     let request_time = Utc::now();
     let started_at = std::time::Instant::now();
     let request_json = serde_json::from_slice::<Value>(&body).ok();
+
+    let input_model = request_json
+        .as_ref()
+        .and_then(|v| v.get("model"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+
     let is_stream = request_json
         .as_ref()
         .and_then(|value| value.get("stream"))
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
+    // Look up model route
+    let route = {
+        let routes = state.routes.read().await;
+        crate::routes::find_route(&routes, &input_model)
+    };
+
+    let (upstream_url, output_model, api_key) = match &route {
+        Some(r) => (
+            format!("{}/v1/messages", r.upstream_url),
+            r.output_model.clone(),
+            r.api_key.clone(),
+        ),
+        None => (
+            format!("{}/v1/messages", state.config.upstream_base_url),
+            input_model.clone(),
+            state.config.api_key.clone(),
+        ),
+    };
+
+    // Replace model name in body if routed
+    let upstream_body = if input_model != output_model {
+        if let Some(mut json) = request_json.clone() {
+            json["model"] = Value::String(output_model.clone());
+            Bytes::from(json.to_string())
+        } else {
+            body.clone()
+        }
+    } else {
+        body.clone()
+    };
+
     info!(
         request_id = %request_id,
         path = "/v1/messages",
+        input_model = %input_model,
+        output_model = %output_model,
         request_time = %request_time.to_rfc3339(),
         "received request"
     );
@@ -56,20 +97,21 @@ pub async fn proxy_messages(
                 "path": "/v1/messages",
                 "headers": headers_to_json(&headers),
                 "body": body_to_json(&body),
-                "stream": is_stream
+                "stream": is_stream,
+                "input_model": input_model,
+                "output_model": output_model
             }),
         },
     );
 
-    let upstream_url = format!("{}/v1/messages", state.config.upstream_base_url);
     let mut upstream_headers = filter_request_headers(&headers);
-    apply_default_headers(&state, &mut upstream_headers);
+    apply_default_headers(&state, &mut upstream_headers, api_key.as_deref());
 
     let upstream_response = match state
         .client
-        .post(upstream_url)
+        .post(&upstream_url)
         .headers(upstream_headers)
-        .body(body.clone())
+        .body(upstream_body)
         .send()
         .await
     {
@@ -282,7 +324,12 @@ async fn proxy_streaming_response(
 fn filter_request_headers(headers: &HeaderMap) -> HeaderMap {
     let mut filtered = HeaderMap::new();
     for (name, value) in headers {
-        if is_hop_by_hop_header(name) || *name == HOST || *name == CONTENT_LENGTH {
+        if is_hop_by_hop_header(name)
+            || *name == HOST
+            || *name == CONTENT_LENGTH
+            || name.as_str() == "authorization"
+            || name.as_str() == "x-api-key"
+        {
             continue;
         }
         filtered.insert(name.clone(), value.clone());
@@ -290,15 +337,16 @@ fn filter_request_headers(headers: &HeaderMap) -> HeaderMap {
     filtered
 }
 
-fn apply_default_headers(state: &AppState, headers: &mut HeaderMap) {
+fn apply_default_headers(state: &AppState, headers: &mut HeaderMap, api_key: Option<&str>) {
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
     if let Ok(version) = HeaderValue::from_str(&state.config.anthropic_version) {
         headers.insert(HeaderName::from_static("anthropic-version"), version);
     }
 
-    if let Some(api_key) = &state.config.api_key {
-        if let Ok(value) = HeaderValue::from_str(api_key) {
+    let key = api_key.or(state.config.api_key.as_deref());
+    if let Some(key) = key {
+        if let Ok(value) = HeaderValue::from_str(key) {
             headers.insert(HeaderName::from_static("x-api-key"), value);
         }
     }

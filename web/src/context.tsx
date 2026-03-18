@@ -45,8 +45,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
           next.set(event.request_id, {
             id: event.request_id,
             timestamp: event.timestamp,
-            model: (event.data?.body as Record<string, unknown>)
-              ?.model as string,
+            inputModel: event.data?.input_model as string,
+            outputModel: event.data?.output_model as string,
             stream: (event.data?.body as Record<string, unknown>)
               ?.stream as boolean,
             status: "pending",

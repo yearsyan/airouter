@@ -82,7 +82,12 @@ export default function DetailPanel({ request, onClose, width }: Props) {
               label="Time"
               value={new Date(request.timestamp).toLocaleString()}
             />
-            {request.model && <Row label="Model" value={request.model} />}
+            {request.inputModel && (
+              <Row label="Input Model" value={request.inputModel} />
+            )}
+            {request.outputModel && (
+              <Row label="Output Model" value={request.outputModel} />
+            )}
             {request.stream != null && (
               <Row label="Stream" value={request.stream ? "yes" : "no"} />
             )}
