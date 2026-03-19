@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Header } from "../App";
 import DetailPanel from "../components/DetailPanel";
 import type { RequestRecord } from "../types";
@@ -21,6 +22,7 @@ interface HistoryEntry {
 }
 
 export default function HistoryPage() {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +109,7 @@ export default function HistoryPage() {
     <div className="app">
       <Header>
         <button onClick={fetchHistory} className="btn-clear">
-          Refresh
+          {t("common.refresh")}
         </button>
       </Header>
 
@@ -115,22 +117,22 @@ export default function HistoryPage() {
         <div className="panel-left">
           {error && <div className="routes-error">{error}</div>}
           {loading ? (
-            <div className="empty">Loading...</div>
+            <div className="empty">{t("common.loading")}</div>
           ) : entries.length === 0 ? (
             <div className="empty">
-              <p>No history yet.</p>
+              <p>{t("history.noHistory")}</p>
             </div>
           ) : (
             <table>
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Key</th>
-                  <th>Input Model</th>
-                  <th>Output Model</th>
-                  <th>TTFT</th>
-                  <th>Tokens</th>
-                  <th>TPS</th>
+                  <th>{t("monitor.time")}</th>
+                  <th>{t("history.key")}</th>
+                  <th>{t("monitor.inputModel")}</th>
+                  <th>{t("monitor.outputModel")}</th>
+                  <th>{t("monitor.ttft")}</th>
+                  <th>{t("monitor.tokens")}</th>
+                  <th>{t("monitor.tps")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,13 +190,14 @@ export default function HistoryPage() {
             <div className="resize-handle" onMouseDown={onMouseDown} />
             {detailLoading ? (
               <div className="panel-right" style={{ width: panelWidth }}>
-                <div className="empty">Loading...</div>
+                <div className="empty">{t("common.loading")}</div>
               </div>
             ) : detail ? (
               <DetailPanel
                 request={detail}
                 onClose={() => setSelectedId(null)}
                 width={panelWidth}
+                hideEvents
               />
             ) : (
               <div className="panel-right" style={{ width: panelWidth }}>
@@ -211,7 +214,7 @@ export default function HistoryPage() {
                 </div>
                 <div className="panel-right-body">
                   <div className="empty-sm">
-                    Detail log not available for this request.
+                    {t("history.detailNotAvailable")}
                   </div>
                 </div>
               </div>

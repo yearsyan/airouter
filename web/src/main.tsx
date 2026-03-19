@@ -5,6 +5,8 @@ import App from "./App";
 import Dashboard from "./pages/Dashboard";
 import RoutesPage from "./pages/RoutesPage";
 import HistoryPage from "./pages/HistoryPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import "./i18n";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -15,6 +17,7 @@ createRoot(document.getElementById("root")!).render(
           <Route index element={<Dashboard />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="history" element={<HistoryPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

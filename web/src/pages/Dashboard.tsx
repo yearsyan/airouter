@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useEvents } from "../context";
 import { Header } from "../App";
 import DetailPanel from "../components/DetailPanel";
@@ -8,6 +9,7 @@ const MAX_PANEL = 960;
 const DEFAULT_PANEL = 520;
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { requests, connected, clear } = useEvents();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL);
@@ -52,11 +54,11 @@ export default function Dashboard() {
         <span
           className={`status ${connected ? "connected" : "disconnected"}`}
         >
-          {connected ? "Connected" : "Disconnected"}
+          {connected ? t("status.connected") : t("status.disconnected")}
         </span>
         {requests.length > 0 && (
           <button onClick={clear} className="btn-clear">
-            Clear
+            {t("common.clear")}
           </button>
         )}
       </Header>
@@ -65,21 +67,21 @@ export default function Dashboard() {
         <div className="panel-left">
           {requests.length === 0 ? (
             <div className="empty">
-              <p>No requests yet. Waiting for traffic...</p>
+              <p>{t("monitor.noRequests")}</p>
             </div>
           ) : (
             <table>
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Input Model</th>
-                  <th>Output Model</th>
-                  <th>Stream</th>
-                  <th>Status</th>
-                  <th>Duration</th>
-                  <th>TTFT</th>
-                  <th>Tokens</th>
-                  <th>TPS</th>
+                  <th>{t("monitor.time")}</th>
+                  <th>{t("monitor.inputModel")}</th>
+                  <th>{t("monitor.outputModel")}</th>
+                  <th>{t("monitor.stream")}</th>
+                  <th>{t("monitor.status")}</th>
+                  <th>{t("monitor.duration")}</th>
+                  <th>{t("monitor.ttft")}</th>
+                  <th>{t("monitor.tokens")}</th>
+                  <th>{t("monitor.tps")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -104,7 +106,7 @@ export default function Dashboard() {
                         req.outputModel || "-"
                       )}
                     </td>
-                    <td>{req.stream ? "yes" : "no"}</td>
+                    <td>{req.stream ? t("common.yes") : t("common.no")}</td>
                     <td>
                       <span className={`badge badge-${req.status}`}>
                         {req.status}

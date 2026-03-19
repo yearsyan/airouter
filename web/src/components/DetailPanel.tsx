@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { RequestRecord } from "../types";
 import JsonView from "./JsonView";
 import RequestView from "./RequestView";
@@ -8,6 +9,7 @@ interface Props {
   request: RequestRecord;
   onClose: () => void;
   width: number;
+  hideEvents?: boolean;
 }
 
 type Tab = "overview" | "content" | "request" | "response" | "events";
@@ -27,7 +29,8 @@ function getContentBlocks(request: RequestRecord): unknown[] {
   return [];
 }
 
-export default function DetailPanel({ request, onClose, width }: Props) {
+export default function DetailPanel({ request, onClose, width, hideEvents }: Props) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("overview");
 
   const reqHeaders = request.requestData?.headers as
@@ -45,9 +48,15 @@ export default function DetailPanel({ request, onClose, width }: Props) {
   const contentBlocks = getContentBlocks(request);
   const hasContent = contentBlocks.length > 0;
 
-  const tabs: Tab[] = hasContent
-    ? ["overview", "content", "request", "response", "events"]
-    : ["overview", "request", "response", "events"];
+  const baseTabs: Tab[] = hasContent
+    ? ["overview", "content", "request", "response"]
+    : ["overview", "request", "response"];
+  const tabs: Tab[] = hideEvents ? baseTabs : [...baseTabs, "events"];
+
+  const tabLabel = (tabName: Tab) => {
+    if (tabName === "events") return `${t("detail.events")} (${request.events.length})`;
+    return t(`detail.${tabName}`);
+  };
 
   return (
     <div className="panel-right" style={{ width }}>
@@ -70,7 +79,7 @@ export default function DetailPanel({ request, onClose, width }: Props) {
             className={`tab ${tab === t ? "tab-active" : ""}`}
             onClick={() => setTab(t)}
           >
-            {t === "events" ? `events (${request.events.length})` : t}
+            {tabLabel(t)}
           </button>
         ))}
       </div>
@@ -78,35 +87,35 @@ export default function DetailPanel({ request, onClose, width }: Props) {
       <div className="panel-right-body">
         {tab === "overview" && (
           <div className="detail-meta">
-            <Row label="ID" value={request.id} mono />
+            <Row label={t("detail.id")} value={request.id} mono />
             <Row
-              label="Time"
+              label={t("detail.time")}
               value={new Date(request.timestamp).toLocaleString()}
             />
             {request.inputModel && (
-              <Row label="Input Model" value={request.inputModel} />
+              <Row label={t("detail.inputModel")} value={request.inputModel} />
             )}
             {request.outputModel && (
-              <Row label="Output Model" value={request.outputModel} />
+              <Row label={t("detail.outputModel")} value={request.outputModel} />
             )}
             {request.stream != null && (
-              <Row label="Stream" value={request.stream ? "yes" : "no"} />
+              <Row label={t("detail.stream")} value={request.stream ? t("common.yes") : t("common.no")} />
             )}
             {respStatus != null && (
-              <Row label="HTTP Status" value={String(respStatus)} mono />
+              <Row label={t("detail.httpStatus")} value={String(respStatus)} mono />
             )}
             {request.durationMs != null && (
-              <Row label="Duration" value={`${request.durationMs}ms`} mono />
+              <Row label={t("detail.duration")} value={`${request.durationMs}ms`} mono />
             )}
             {request.usage && (
               <>
                 <Row
-                  label="Input Tokens"
+                  label={t("detail.inputTokens")}
                   value={String(request.usage.input_tokens)}
                   mono
                 />
                 <Row
-                  label="Output Tokens"
+                  label={t("detail.outputTokens")}
                   value={String(request.usage.output_tokens)}
                   mono
                 />
@@ -130,26 +139,26 @@ export default function DetailPanel({ request, onClose, width }: Props) {
           <>
             {respStatus != null && (
               <div className="detail-meta" style={{ marginBottom: 12 }}>
-                <Row label="Status" value={String(respStatus)} mono />
+                <Row label={t("detail.status")} value={String(respStatus)} mono />
               </div>
             )}
             {respHeaders && (
-              <Section title="Headers">
+              <Section title={t("detail.headers")}>
                 <HeadersTable headers={respHeaders} />
               </Section>
             )}
             {respText && (
-              <Section title="Text">
+              <Section title={t("detail.text")}>
                 <pre className="code-block">{String(respText)}</pre>
               </Section>
             )}
             {respBody && (
-              <Section title="Body">
+              <Section title={t("detail.body")}>
                 <JsonView data={respBody} />
               </Section>
             )}
             {!respStatus && !respHeaders && !respBody && !respText && (
-              <div className="empty-sm">No response data yet.</div>
+              <div className="empty-sm">{t("detail.noResponseData")}</div>
             )}
           </>
         )}
@@ -215,12 +224,13 @@ function RequestTab({
   headers?: Record<string, string>;
   body: unknown;
 }) {
+  const { t } = useTranslation();
   const [sub, setSub] = useState<ReqSub>("readable");
 
   return (
     <>
       {headers && (
-        <Section title="Headers">
+        <Section title={t("detail.headers")}>
           <HeadersTable headers={headers} />
         </Section>
       )}
@@ -229,13 +239,13 @@ function RequestTab({
           className={`sub-tab ${sub === "readable" ? "sub-tab-active" : ""}`}
           onClick={() => setSub("readable")}
         >
-          Readable
+          {t("detail.readable")}
         </button>
         <button
           className={`sub-tab ${sub === "raw" ? "sub-tab-active" : ""}`}
           onClick={() => setSub("raw")}
         >
-          Raw JSON
+          {t("detail.rawJson")}
         </button>
       </div>
       {sub === "readable" && body && typeof body === "object" ? (
@@ -248,8 +258,9 @@ function RequestTab({
 }
 
 function HeadersTable({ headers }: { headers: Record<string, string> }) {
+  const { t } = useTranslation();
   const entries = Object.entries(headers);
-  if (entries.length === 0) return <div className="empty-sm">No headers</div>;
+  if (entries.length === 0) return <div className="empty-sm">{t("common.noHeaders")}</div>;
 
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
@@ -303,13 +314,13 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
           onClick={(e) => e.stopPropagation()}
         >
           <button onClick={() => copyToClipboard(ctxMenu.key)}>
-            Copy Name
+            {t("common.copyName")}
           </button>
           <button onClick={() => copyToClipboard(ctxMenu.value)}>
-            Copy Value
+            {t("common.copyValue")}
           </button>
           <button onClick={() => copyToClipboard(`${ctxMenu.key}: ${ctxMenu.value}`)}>
-            Copy Entry
+            {t("common.copyEntry")}
           </button>
         </div>
       )}

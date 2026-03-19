@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 const THEMES = [
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
-  { value: "dim", label: "Dim" },
+  { value: "dark", labelKey: "theme.dark" },
+  { value: "light", labelKey: "theme.light" },
+  { value: "dim", labelKey: "theme.dim" },
 ] as const;
 
 type Theme = (typeof THEMES)[number]["value"];
@@ -15,6 +16,7 @@ function getInitial(): Theme {
 }
 
 export default function ThemeSwitcher() {
+  const { t } = useTranslation();
   const [theme, setTheme] = useState<Theme>(getInitial);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -41,22 +43,22 @@ export default function ThemeSwitcher() {
     <div className="theme-switcher" ref={ref}>
       <button className="theme-trigger" onClick={() => setOpen(!open)}>
         <span className="theme-dot" />
-        {current.label}
+        {t(current.labelKey)}
         <span className={`theme-chevron ${open ? "theme-chevron-open" : ""}`} />
       </button>
       {open && (
         <div className="theme-dropdown">
-          {THEMES.map((t) => (
+          {THEMES.map((th) => (
             <button
-              key={t.value}
-              className={`theme-option ${t.value === theme ? "theme-option-active" : ""}`}
+              key={th.value}
+              className={`theme-option ${th.value === theme ? "theme-option-active" : ""}`}
               onClick={() => {
-                setTheme(t.value);
+                setTheme(th.value);
                 setOpen(false);
               }}
             >
-              <span className={`theme-swatch theme-swatch-${t.value}`} />
-              {t.label}
+              <span className={`theme-swatch theme-swatch-${th.value}`} />
+              {t(th.labelKey)}
             </button>
           ))}
         </div>

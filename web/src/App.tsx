@@ -1,7 +1,9 @@
 import { NavLink, Outlet } from "react-router";
+import { useTranslation } from "react-i18next";
 import { EventProvider } from "./context";
 import { TextModalProvider } from "./components/TextModal";
 import ThemeSwitcher from "./components/ThemeSwitcher";
+import LangSwitcher from "./components/LangSwitcher";
 
 export default function App() {
   return (
@@ -14,6 +16,7 @@ export default function App() {
 }
 
 export function Header({ children }: { children?: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <header className="header">
       <div className="header-left">
@@ -26,7 +29,7 @@ export function Header({ children }: { children?: React.ReactNode }) {
               `nav-btn ${isActive ? "nav-btn-active" : ""}`
             }
           >
-            Monitor
+            {t("nav.monitor")}
           </NavLink>
           <NavLink
             to="/routes"
@@ -34,7 +37,7 @@ export function Header({ children }: { children?: React.ReactNode }) {
               `nav-btn ${isActive ? "nav-btn-active" : ""}`
             }
           >
-            Routes
+            {t("nav.routes")}
           </NavLink>
           <NavLink
             to="/history"
@@ -42,11 +45,20 @@ export function Header({ children }: { children?: React.ReactNode }) {
               `nav-btn ${isActive ? "nav-btn-active" : ""}`
             }
           >
-            History
+            {t("nav.history")}
+          </NavLink>
+          <NavLink
+            to="/analytics"
+            className={({ isActive }) =>
+              `nav-btn ${isActive ? "nav-btn-active" : ""}`
+            }
+          >
+            {t("nav.analytics")}
           </NavLink>
         </nav>
       </div>
       <div className="header-actions">
+        <LangSwitcher />
         <ThemeSwitcher />
         {children}
       </div>

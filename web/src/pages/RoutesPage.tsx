@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Header } from "../App";
 import type { ModelRoute } from "../types";
 
 export default function RoutesPage() {
+  const { t } = useTranslation();
   const [routes, setRoutes] = useState<ModelRoute[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,23 +33,23 @@ export default function RoutesPage() {
 
       <div className="routes-page">
         <div className="routes-header">
-          <h2>Model Routes</h2>
-          <span className="routes-readonly">Configured via config.yml</span>
+          <h2>{t("routes.title")}</h2>
+          <span className="routes-readonly">{t("routes.readonly")}</span>
         </div>
 
         {error && <div className="routes-error">{error}</div>}
 
         {loading ? (
-          <div className="empty">Loading...</div>
+          <div className="empty">{t("common.loading")}</div>
         ) : (
           <table className="routes-table">
             <thead>
               <tr>
-                <th>Input Model</th>
-                <th>Output Model</th>
-                <th>Upstream URL</th>
-                <th>API Key</th>
-                <th>Auth</th>
+                <th>{t("monitor.inputModel")}</th>
+                <th>{t("monitor.outputModel")}</th>
+                <th>{t("routes.upstreamUrl")}</th>
+                <th>{t("routes.apiKey")}</th>
+                <th>{t("routes.auth")}</th>
               </tr>
             </thead>
             <tbody>
@@ -67,8 +69,7 @@ export default function RoutesPage() {
               {routes.length === 0 && (
                 <tr>
                   <td colSpan={5} className="empty-sm">
-                    No routes configured. All requests go to the default
-                    upstream.
+                    {t("routes.noRoutes")}
                   </td>
                 </tr>
               )}

@@ -1,0 +1,99 @@
+{
+  "nav": {
+    "monitor": "监控",
+    "routes": "路由",
+    "history": "历史",
+    "analytics": "统计"
+  },
+  "status": {
+    "connected": "已连接",
+    "disconnected": "已断开"
+  },
+  "common": {
+    "clear": "清空",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "yes": "是",
+    "no": "否",
+    "copyName": "复制名称",
+    "copyValue": "复制值",
+    "copyEntry": "复制整行",
+    "noHeaders": "无请求头"
+  },
+  "monitor": {
+    "noRequests": "暂无请求，等待流量...",
+    "time": "时间",
+    "inputModel": "输入模型",
+    "outputModel": "输出模型",
+    "stream": "流式",
+    "status": "状态",
+    "duration": "耗时",
+    "ttft": "首字延迟",
+    "tokens": "Token数",
+    "tps": "TPS"
+  },
+  "routes": {
+    "title": "模型路由",
+    "readonly": "通过 config.yml 配置",
+    "upstreamUrl": "上游地址",
+    "apiKey": "API 密钥",
+    "auth": "认证",
+    "noRoutes": "未配置路由，所有请求将发送到默认上游。"
+  },
+  "history": {
+    "noHistory": "暂无历史记录。",
+    "key": "密钥",
+    "detailNotAvailable": "该请求的详细日志不可用。"
+  },
+  "detail": {
+    "overview": "概览",
+    "content": "内容",
+    "request": "请求",
+    "response": "响应",
+    "events": "事件",
+    "id": "ID",
+    "time": "时间",
+    "inputModel": "输入模型",
+    "outputModel": "输出模型",
+    "stream": "流式",
+    "status": "状态",
+    "httpStatus": "HTTP 状态",
+    "duration": "耗时",
+    "inputTokens": "输入 Token",
+    "outputTokens": "输出 Token",
+    "headers": "请求头",
+    "text": "文本",
+    "body": "正文",
+    "noResponseData": "暂无响应数据。",
+    "readable": "可读视图",
+    "rawJson": "原始 JSON"
+  },
+  "analytics": {
+    "refresh": "刷新",
+    "filteredBy": "筛选：",
+    "clear": "清除",
+    "totalRequests": "总请求数",
+    "avgTps": "平均 TPS",
+    "avgTtft": "平均 TTFT",
+    "totalTokens": "总 Token 数",
+    "inOut": "入 {{in}} / 出 {{out}}",
+    "requestVolumeHourly": "请求量（按小时）",
+    "requestVolumeDaily": "请求量（按天）",
+    "modelDistribution": "模型分布",
+    "avgTpsByModel": "各模型平均 TPS",
+    "avgTtftByModel": "各模型平均 TTFT",
+    "tokenUsageByModel": "各模型 Token 使用量",
+    "inputTokens": "输入 Token",
+    "outputTokens": "输出 Token",
+    "noData": "暂无数据。"
+  },
+  "theme": {
+    "dark": "深色",
+    "light": "浅色",
+    "dim": "暗淡"
+  },
+  "lang": {
+    "en": "English",
+    "zh": "中文"
+  }
+}

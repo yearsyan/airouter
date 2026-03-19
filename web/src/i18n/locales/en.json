@@ -1,0 +1,99 @@
+{
+  "nav": {
+    "monitor": "Monitor",
+    "routes": "Routes",
+    "history": "History",
+    "analytics": "Analytics"
+  },
+  "status": {
+    "connected": "Connected",
+    "disconnected": "Disconnected"
+  },
+  "common": {
+    "clear": "Clear",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "yes": "yes",
+    "no": "no",
+    "copyName": "Copy Name",
+    "copyValue": "Copy Value",
+    "copyEntry": "Copy Entry",
+    "noHeaders": "No headers"
+  },
+  "monitor": {
+    "noRequests": "No requests yet. Waiting for traffic...",
+    "time": "Time",
+    "inputModel": "Input Model",
+    "outputModel": "Output Model",
+    "stream": "Stream",
+    "status": "Status",
+    "duration": "Duration",
+    "ttft": "TTFT",
+    "tokens": "Tokens",
+    "tps": "TPS"
+  },
+  "routes": {
+    "title": "Model Routes",
+    "readonly": "Configured via config.yml",
+    "upstreamUrl": "Upstream URL",
+    "apiKey": "API Key",
+    "auth": "Auth",
+    "noRoutes": "No routes configured. All requests go to the default upstream."
+  },
+  "history": {
+    "noHistory": "No history yet.",
+    "key": "Key",
+    "detailNotAvailable": "Detail log not available for this request."
+  },
+  "detail": {
+    "overview": "overview",
+    "content": "content",
+    "request": "request",
+    "response": "response",
+    "events": "events",
+    "id": "ID",
+    "time": "Time",
+    "inputModel": "Input Model",
+    "outputModel": "Output Model",
+    "stream": "Stream",
+    "status": "Status",
+    "httpStatus": "HTTP Status",
+    "duration": "Duration",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "headers": "Headers",
+    "text": "Text",
+    "body": "Body",
+    "noResponseData": "No response data yet.",
+    "readable": "Readable",
+    "rawJson": "Raw JSON"
+  },
+  "analytics": {
+    "refresh": "Refresh",
+    "filteredBy": "Filtered by:",
+    "clear": "Clear",
+    "totalRequests": "Total Requests",
+    "avgTps": "Avg TPS",
+    "avgTtft": "Avg TTFT",
+    "totalTokens": "Total Tokens",
+    "inOut": "In {{in}} / Out {{out}}",
+    "requestVolumeHourly": "Request Volume (Hourly)",
+    "requestVolumeDaily": "Request Volume (Daily)",
+    "modelDistribution": "Model Distribution",
+    "avgTpsByModel": "Avg TPS by Model",
+    "avgTtftByModel": "Avg TTFT by Model",
+    "tokenUsageByModel": "Token Usage by Model",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "noData": "No data available."
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light",
+    "dim": "Dim"
+  },
+  "lang": {
+    "en": "English",
+    "zh": "中文"
+  }
+}
