@@ -12,12 +12,12 @@ use std::{env, ffi::OsString, path::PathBuf, sync::Arc};
 use anyhow::{Context, Result, bail};
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::Client;
 use rustls::crypto::aws_lc_rs;
-use tokio::sync::broadcast;
+use tokio::sync::{RwLock, broadcast};
 use tracing::info;
 
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
     history::{get_history, get_history_detail},
     monitor::{healthz, ws_handler},
     proxy::proxy_messages,
-    routes::get_routes,
+    routes::{get_routes, set_default_model},
     state::AppState,
 };
 
@@ -43,12 +43,19 @@ async fn main() -> Result<()> {
         .context("failed to build reqwest client")?;
     let (broadcaster, _) = broadcast::channel(512);
 
-    info!(count = config.routes.len(), "loaded model routes");
+    info!(
+        providers = config.providers.len(),
+        routes = config.routes.len(),
+        "loaded config"
+    );
+
+    let default_model = Arc::new(RwLock::new(config.default_model.clone()));
 
     let state = AppState {
         client,
         config: Arc::clone(&config),
         broadcaster,
+        default_model,
     };
 
     let app = Router::new()
@@ -56,6 +63,7 @@ async fn main() -> Result<()> {
         .route("/ws", get(ws_handler))
         .route("/v1/messages", post(proxy_messages))
         .route("/api/routes", get(get_routes))
+        .route("/api/default-model", put(set_default_model))
         .route("/api/history", get(get_history))
         .route("/api/history/{id}", get(get_history_detail))
         .fallback(static_handler)
@@ -69,7 +77,7 @@ async fn main() -> Result<()> {
         info!(
             config = %config.config_path.display(),
             listen = %config.listen_addr,
-            upstream = %config.upstream_base_url,
+            providers = config.providers.len(),
             tls = true,
             cert = %config.cert_path.display(),
             "starting airouter"
@@ -83,7 +91,7 @@ async fn main() -> Result<()> {
         info!(
             config = %config.config_path.display(),
             listen = %config.listen_addr,
-            upstream = %config.upstream_base_url,
+            providers = config.providers.len(),
             tls = false,
             "starting airouter"
         );

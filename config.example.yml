@@ -2,12 +2,20 @@ server:
   listen_addr: 0.0.0.0
   port: 443
   log_dir: logs          # directory for requests.csv (default: config file directory)
-
-upstream:
-  base_url: https://open.bigmodel.cn/api/anthropic
-  model: glm-4-plus            # default model sent to upstream (replaces client model)
-  api_key: "replace-with-your-api-key"
   anthropic_version: "2023-06-01"
+
+providers:
+  - name: zhipu
+    upstream_url: https://open.bigmodel.cn/api/anthropic
+    api_key: "replace-with-your-api-key"
+    auth_header: authorization    # "authorization" (default, sends Bearer) or "x-api-key"
+    models:
+      - glm-4-plus
+      - glm-4-flash
+
+default_model:
+  provider: zhipu
+  model: glm-4-plus
 
 tls:
   enabled: true
@@ -18,10 +26,8 @@ tls:
 # Model routing rules
 # routes:
 #   - input_model: claude-sonnet-4-20250514
-#     output_model: glm-4-plus
-#     upstream_url: https://open.bigmodel.cn/api/anthropic
-#     api_key: "optional-override-key"
-#     auth_header: authorization    # or "x-api-key"
+#     provider: zhipu
+#     model: glm-4-plus
 
 # Client authentication - leave empty or remove to disable auth
 # access_keys:

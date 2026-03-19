@@ -20,10 +20,21 @@ export interface RequestRecord {
   events: MonitorEvent[];
 }
 
+export interface Provider {
+  name: string;
+  upstream_url: string;
+  auth_header: string;
+  has_api_key: boolean;
+  models: string[];
+}
+
+export interface DefaultModel {
+  provider: string;
+  model: string;
+}
+
 export interface ModelRoute {
   input_model: string;
-  upstream_url: string;
-  output_model: string;
-  api_key?: string;
-  auth_header?: string;
+  provider: string;
+  model: string;
 }

@@ -8,7 +8,6 @@ use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
-const DEFAULT_UPSTREAM_BASE_URL: &str = "https://open.bigmodel.cn/api/anthropic";
 const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
 const DEFAULT_LISTEN_ADDR: &str = "0.0.0.0";
 const DEFAULT_PORT: u16 = 443;
@@ -20,15 +19,12 @@ const DEFAULT_KEY_FILE: &str = "key.pem";
 pub struct Config {
     pub config_path: PathBuf,
     pub listen_addr: SocketAddr,
-    pub upstream_base_url: String,
-    pub upstream_model: Option<String>,
-    pub api_key: Option<String>,
-    /// "authorization" (default) or "x-api-key"
-    pub auth_header: String,
     pub anthropic_version: String,
     pub tls_enabled: bool,
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
+    pub providers: Vec<Provider>,
+    pub default_model: Option<DefaultModel>,
     pub routes: Vec<ModelRoute>,
     pub access_keys: Vec<AccessKey>,
     pub log_dir: PathBuf,
@@ -72,31 +68,27 @@ impl Config {
                 .unwrap_or_else(|| DEFAULT_KEY_FILE.to_string()),
         );
 
+        let providers: Vec<Provider> = raw
+            .providers
+            .into_iter()
+            .map(|mut p| {
+                p.upstream_url = p.upstream_url.trim_end_matches('/').to_string();
+                p
+            })
+            .collect();
+
         Ok(Self {
             config_path,
             listen_addr: SocketAddr::new(listen_ip, port),
-            upstream_base_url: raw
-                .upstream
-                .base_url
-                .unwrap_or_else(|| DEFAULT_UPSTREAM_BASE_URL.to_string())
-                .trim_end_matches('/')
-                .to_string(),
-            upstream_model: raw.upstream.model.filter(|value| !value.trim().is_empty()),
-            api_key: raw
-                .upstream
-                .api_key
-                .filter(|value| !value.trim().is_empty()),
-            auth_header: raw
-                .upstream
-                .auth_header
-                .unwrap_or_else(|| "authorization".to_string()),
             anthropic_version: raw
-                .upstream
+                .server
                 .anthropic_version
                 .unwrap_or_else(|| DEFAULT_ANTHROPIC_VERSION.to_string()),
             tls_enabled,
             cert_path,
             key_path,
+            providers,
+            default_model: raw.default_model,
             routes: raw.routes,
             access_keys: raw.access_keys,
             log_dir: resolve_relative_to(
@@ -105,18 +97,39 @@ impl Config {
             ),
         })
     }
+
+    pub fn find_provider(&self, name: &str) -> Option<&Provider> {
+        self.providers.iter().find(|p| p.name == name)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Provider {
+    pub name: String,
+    pub upstream_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    #[serde(default = "default_auth_header")]
+    pub auth_header: String,
+    #[serde(default)]
+    pub models: Vec<String>,
+}
+
+fn default_auth_header() -> String {
+    "authorization".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefaultModel {
+    pub provider: String,
+    pub model: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelRoute {
     pub input_model: String,
-    pub upstream_url: String,
-    pub output_model: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub api_key: Option<String>,
-    /// "authorization" (default, sends Bearer) or "x-api-key"
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auth_header: Option<String>,
+    pub provider: String,
+    pub model: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -130,9 +143,11 @@ struct RawConfig {
     #[serde(default)]
     server: ServerConfig,
     #[serde(default)]
-    upstream: UpstreamConfig,
-    #[serde(default)]
     tls: TlsConfig,
+    #[serde(default)]
+    providers: Vec<Provider>,
+    #[serde(default)]
+    default_model: Option<DefaultModel>,
     #[serde(default)]
     routes: Vec<ModelRoute>,
     #[serde(default)]
@@ -144,14 +159,6 @@ struct ServerConfig {
     listen_addr: Option<String>,
     port: Option<u16>,
     log_dir: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct UpstreamConfig {
-    base_url: Option<String>,
-    model: Option<String>,
-    api_key: Option<String>,
-    auth_header: Option<String>,
     anthropic_version: Option<String>,
 }
 

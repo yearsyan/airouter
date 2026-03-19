@@ -88,28 +88,25 @@ pub async fn proxy_messages(
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
-    // Look up model route
+    // Look up model route, then resolve provider
     let route = crate::routes::find_route(&state.config.routes, &input_model);
+    let default_model = state.default_model.read().await.clone();
 
-    let (upstream_url, output_model, api_key, auth_header) = match &route {
-        Some(r) => (
-            format!("{}/v1/messages", r.upstream_url),
-            r.output_model.clone(),
-            r.api_key.clone(),
-            r.auth_header
-                .clone()
-                .unwrap_or_else(|| state.config.auth_header.clone()),
-        ),
-        None => (
-            format!("{}/v1/messages", state.config.upstream_base_url),
-            state
-                .config
-                .upstream_model
-                .clone()
-                .unwrap_or_else(|| input_model.clone()),
-            state.config.api_key.clone(),
-            state.config.auth_header.clone(),
-        ),
+    let resolved = resolve_upstream(&state.config, route.as_ref(), &default_model, &input_model);
+    let (upstream_url, output_model, api_key, auth_header) = match resolved {
+        Some(r) => (r.url, r.output_model, r.api_key, r.auth_header),
+        None => {
+            return build_json_response(
+                StatusCode::BAD_GATEWAY,
+                json!({
+                    "type": "error",
+                    "error": {
+                        "type": "configuration_error",
+                        "message": "no route matches and no default model configured"
+                    }
+                }),
+            );
+        }
     };
 
     // Replace model name in body if routed
@@ -618,6 +615,51 @@ async fn proxy_streaming_response(
     build_response(status, &response_headers, Body::from_stream(stream))
 }
 
+struct ResolvedUpstream {
+    url: String,
+    output_model: String,
+    api_key: Option<String>,
+    auth_header: String,
+}
+
+fn resolve_upstream(
+    config: &crate::config::Config,
+    route: Option<&crate::config::ModelRoute>,
+    default_model: &Option<crate::config::DefaultModel>,
+    input_model: &str,
+) -> Option<ResolvedUpstream> {
+    if let Some(r) = route {
+        let provider = config.find_provider(&r.provider)?;
+        Some(ResolvedUpstream {
+            url: format!("{}/v1/messages", provider.upstream_url),
+            output_model: r.model.clone(),
+            api_key: provider.api_key.clone(),
+            auth_header: provider.auth_header.clone(),
+        })
+    } else if let Some(dm) = default_model {
+        let provider = config.find_provider(&dm.provider)?;
+        Some(ResolvedUpstream {
+            url: format!("{}/v1/messages", provider.upstream_url),
+            output_model: dm.model.clone(),
+            api_key: provider.api_key.clone(),
+            auth_header: provider.auth_header.clone(),
+        })
+    } else {
+        // If there's exactly one provider and no default model, use it with input model
+        if config.providers.len() == 1 {
+            let provider = &config.providers[0];
+            Some(ResolvedUpstream {
+                url: format!("{}/v1/messages", provider.upstream_url),
+                output_model: input_model.to_string(),
+                api_key: provider.api_key.clone(),
+                auth_header: provider.auth_header.clone(),
+            })
+        } else {
+            None
+        }
+    }
+}
+
 fn extract_client_key(headers: &HeaderMap) -> Option<String> {
     if let Some(auth) = headers.get("authorization") {
         if let Ok(s) = auth.to_str() {
@@ -662,8 +704,7 @@ fn apply_default_headers(
         headers.insert(HeaderName::from_static("anthropic-version"), version);
     }
 
-    let key = api_key.or(state.config.api_key.as_deref());
-    if let Some(key) = key {
+    if let Some(key) = api_key {
         match auth_header {
             "x-api-key" => {
                 if let Ok(value) = HeaderValue::from_str(key) {

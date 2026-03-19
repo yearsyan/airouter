@@ -33,12 +33,24 @@
     "tps": "TPS"
   },
   "routes": {
-    "title": "Model Routes",
+    "title": "Configuration",
     "readonly": "Configured via config.yml",
+    "providers": "Providers",
+    "providerName": "Provider",
     "upstreamUrl": "Upstream URL",
     "apiKey": "API Key",
     "auth": "Auth",
-    "noRoutes": "No routes configured. All requests go to the default upstream."
+    "models": "Models",
+    "defaultModel": "Default Model",
+    "currentDefault": "Current Default",
+    "noProviders": "No providers configured.",
+    "routeRules": "Route Rules",
+    "inputModel": "Input Model",
+    "outputModel": "Output Model",
+    "noRoutes": "No route rules configured.",
+    "apply": "Apply",
+    "applied": "Applied",
+    "runtimeOnly": "Runtime only, not persisted"
   },
   "history": {
     "noHistory": "No history yet.",
