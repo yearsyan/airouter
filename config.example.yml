@@ -35,3 +35,11 @@ tls:
 #     key: "sk-airouter-alice-key"
 #   - name: bob
 #     key: "sk-airouter-bob-key"
+
+# Web dashboard authentication (OTP-based) - leave empty or remove to disable
+# ${CODE} is replaced with a 6-digit one-time code (valid for 30s)
+# web_auth:
+#   - name: alice
+#     otp_curl: 'curl -s -X POST "https://api.example.com/send-sms" -d "phone=1234567890&code=${CODE}"'
+#   - name: bob
+#     otp_curl: 'curl -s -X POST "https://hooks.slack.com/xxx" -H "Content-Type: application/json" -d "{\"text\":\"Your code: ${CODE}\"}"'

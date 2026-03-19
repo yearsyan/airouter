@@ -105,6 +105,20 @@
     "light": "浅色",
     "dim": "暗淡"
   },
+  "auth": {
+    "title": "登录",
+    "username": "用户名",
+    "usernamePlaceholder": "请输入用户名",
+    "sendCode": "发送验证码",
+    "codeSent": "已发送",
+    "code": "验证码",
+    "codePlaceholder": "6位数字验证码",
+    "login": "登录",
+    "codeExpiry": "验证码 {{seconds}}s 后过期",
+    "invalidUsername": "用户名无效",
+    "invalidCode": "验证码无效或已过期",
+    "sendFailed": "发送验证码失败"
+  },
   "lang": {
     "en": "English",
     "zh": "中文"

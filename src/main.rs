@@ -1,3 +1,4 @@
+mod auth;
 mod config;
 mod csv_log;
 mod embed;
@@ -11,7 +12,7 @@ use std::{env, ffi::OsString, path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result, bail};
 use axum::{
-    Router,
+    Router, middleware,
     routing::{get, post, put},
 };
 use axum_server::tls_rustls::RustlsConfig;
@@ -21,13 +22,14 @@ use tokio::sync::{RwLock, broadcast};
 use tracing::info;
 
 use crate::{
+    auth::{auth_middleware, auth_status, send_otp, verify_otp},
     config::{Config, ensure_self_signed_cert},
     embed::static_handler,
     history::{get_history, get_history_detail},
     monitor::{healthz, ws_handler},
     proxy::proxy_messages,
     routes::{get_routes, set_default_model},
-    state::AppState,
+    state::{AppState, AuthState},
 };
 
 #[tokio::main]
@@ -46,6 +48,7 @@ async fn main() -> Result<()> {
     info!(
         providers = config.providers.len(),
         routes = config.routes.len(),
+        web_auth = config.web_auth.len(),
         "loaded config"
     );
 
@@ -56,16 +59,25 @@ async fn main() -> Result<()> {
         config: Arc::clone(&config),
         broadcaster,
         default_model,
+        auth: Arc::new(AuthState::new()),
     };
 
-    let app = Router::new()
-        .route("/healthz", get(healthz))
+    // Routes protected by web_auth (middleware is no-op when web_auth is empty)
+    let protected = Router::new()
         .route("/ws", get(ws_handler))
-        .route("/v1/messages", post(proxy_messages))
         .route("/api/routes", get(get_routes))
         .route("/api/default-model", put(set_default_model))
         .route("/api/history", get(get_history))
         .route("/api/history/{id}", get(get_history_detail))
+        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+
+    let app = Router::new()
+        .route("/healthz", get(healthz))
+        .route("/v1/messages", post(proxy_messages))
+        .route("/api/auth/status", get(auth_status))
+        .route("/api/auth/send-otp", post(send_otp))
+        .route("/api/auth/verify-otp", post(verify_otp))
+        .merge(protected)
         .fallback(static_handler)
         .with_state(state);
 

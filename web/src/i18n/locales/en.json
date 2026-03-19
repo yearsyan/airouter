@@ -105,6 +105,20 @@
     "light": "Light",
     "dim": "Dim"
   },
+  "auth": {
+    "title": "Sign In",
+    "username": "Username",
+    "usernamePlaceholder": "Enter username",
+    "sendCode": "Send Code",
+    "codeSent": "Sent",
+    "code": "Verification Code",
+    "codePlaceholder": "6-digit code",
+    "login": "Login",
+    "codeExpiry": "Code expires in {{seconds}}s",
+    "invalidUsername": "Invalid username",
+    "invalidCode": "Invalid or expired code",
+    "sendFailed": "Failed to send code"
+  },
   "lang": {
     "en": "English",
     "zh": "中文"

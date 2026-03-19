@@ -27,6 +27,7 @@ pub struct Config {
     pub default_model: Option<DefaultModel>,
     pub routes: Vec<ModelRoute>,
     pub access_keys: Vec<AccessKey>,
+    pub web_auth: Vec<WebAuthUser>,
     pub log_dir: PathBuf,
 }
 
@@ -91,6 +92,7 @@ impl Config {
             default_model: raw.default_model,
             routes: raw.routes,
             access_keys: raw.access_keys,
+            web_auth: raw.web_auth,
             log_dir: resolve_relative_to(
                 &config_dir,
                 raw.server.log_dir.unwrap_or_else(|| ".".to_string()),
@@ -138,6 +140,12 @@ pub struct AccessKey {
     pub key: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebAuthUser {
+    pub name: String,
+    pub otp_curl: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct RawConfig {
     #[serde(default)]
@@ -152,6 +160,8 @@ struct RawConfig {
     routes: Vec<ModelRoute>,
     #[serde(default)]
     access_keys: Vec<AccessKey>,
+    #[serde(default)]
+    web_auth: Vec<WebAuthUser>,
 }
 
 #[derive(Debug, Default, Deserialize)]
