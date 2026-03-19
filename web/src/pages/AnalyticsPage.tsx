@@ -101,8 +101,8 @@ function modelAgg(entries: Entry[]): ModelStat[] {
     string,
     {
       count: number;
-      tpsS: number;
-      tpsN: number;
+      tpsW: number;   // sum(tps * outputTokens) — weighted numerator
+      tpsWt: number;  // sum(outputTokens) — weight denominator
       ttftS: number;
       ttftN: number;
       inTok: number;
@@ -112,17 +112,17 @@ function modelAgg(entries: Entry[]): ModelStat[] {
   for (const e of entries) {
     const s = m.get(e.outputModel) ?? {
       count: 0,
-      tpsS: 0,
-      tpsN: 0,
+      tpsW: 0,
+      tpsWt: 0,
       ttftS: 0,
       ttftN: 0,
       inTok: 0,
       outTok: 0,
     };
     s.count++;
-    if (e.tps > 0) {
-      s.tpsS += e.tps;
-      s.tpsN++;
+    if (e.tps > 0 && e.outputTokens > 0) {
+      s.tpsW += e.tps * e.outputTokens;
+      s.tpsWt += e.outputTokens;
     }
     if (e.ttftMs > 0) {
       s.ttftS += e.ttftMs;
@@ -136,7 +136,7 @@ function modelAgg(entries: Entry[]): ModelStat[] {
     .map(([model, s]) => ({
       model,
       count: s.count,
-      avgTps: s.tpsN > 0 ? s.tpsS / s.tpsN : 0,
+      avgTps: s.tpsWt > 0 ? s.tpsW / s.tpsWt : 0,
       avgTtft: s.ttftN > 0 ? s.ttftS / s.ttftN : 0,
       inputTokens: s.inTok,
       outputTokens: s.outTok,
@@ -144,26 +144,58 @@ function modelAgg(entries: Entry[]): ModelStat[] {
     .sort((a, b) => b.count - a.count);
 }
 
-function dailyAgg(entries: Entry[]) {
-  const m = new Map<string, number>();
-  for (const e of entries) {
-    const k = e.time.toISOString().slice(0, 10);
-    m.set(k, (m.get(k) ?? 0) + 1);
-  }
-  return Array.from(m.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, count]) => ({ date, count }));
+interface UserStat {
+  user: string;
+  count: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
-function hourlyAgg(entries: Entry[]) {
-  const m = new Map<string, number>();
+function userAgg(entries: Entry[]): UserStat[] {
+  const m = new Map<string, { count: number; inTok: number; outTok: number }>();
   for (const e of entries) {
-    const k = e.time.toISOString().slice(0, 13);
-    m.set(k, (m.get(k) ?? 0) + 1);
+    const key = e.keyName || "-";
+    const s = m.get(key) ?? { count: 0, inTok: 0, outTok: 0 };
+    s.count++;
+    s.inTok += e.inputTokens;
+    s.outTok += e.outputTokens;
+    m.set(key, s);
   }
   return Array.from(m.entries())
+    .map(([user, s]) => ({
+      user,
+      count: s.count,
+      inputTokens: s.inTok,
+      outputTokens: s.outTok,
+    }))
+    .sort((a, b) => b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens));
+}
+
+interface TimeSlot {
+  label: string;
+  byModel: Map<string, number>;
+}
+
+function timelineAgg(entries: Entry[], mode: "daily" | "hourly"): { slots: TimeSlot[]; models: string[] } {
+  const slotMap = new Map<string, Map<string, number>>();
+  const modelSet = new Set<string>();
+  for (const e of entries) {
+    const k = mode === "daily"
+      ? e.time.toISOString().slice(0, 10)
+      : e.time.toISOString().slice(0, 13);
+    modelSet.add(e.outputModel);
+    if (!slotMap.has(k)) slotMap.set(k, new Map());
+    const m = slotMap.get(k)!;
+    m.set(e.outputModel, (m.get(e.outputModel) ?? 0) + 1);
+  }
+  const slots = Array.from(slotMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([hour, count]) => ({ hour: hour.slice(5) + ":00", count }));
+    .map(([key, byModel]) => ({
+      label: mode === "daily" ? key.slice(5) : key.slice(5) + ":00",
+      byModel,
+    }));
+  const models = Array.from(modelSet);
+  return { slots, models };
 }
 
 function fmtNum(n: number): string {
@@ -362,13 +394,14 @@ export default function AnalyticsPage() {
   // stats for summary cards (filtered)
   const overview = useMemo(() => {
     if (filtered.length === 0) return null;
-    const validTps = filtered.filter((e) => e.tps > 0);
+    const validTps = filtered.filter((e) => e.tps > 0 && e.outputTokens > 0);
+    const tpsWeightSum = validTps.reduce((s, e) => s + e.outputTokens, 0);
     const validTtft = filtered.filter((e) => e.ttftMs > 0);
     return {
       total: filtered.length,
       avgTps:
-        validTps.length > 0
-          ? validTps.reduce((s, e) => s + e.tps, 0) / validTps.length
+        tpsWeightSum > 0
+          ? validTps.reduce((s, e) => s + e.tps * e.outputTokens, 0) / tpsWeightSum
           : 0,
       avgTtft:
         validTtft.length > 0
@@ -384,11 +417,14 @@ export default function AnalyticsPage() {
   // model breakdown filtered
   const fModels = useMemo(() => modelAgg(filtered), [filtered]);
 
+  // user breakdown (filtered)
+  const fUsers = useMemo(() => userAgg(filtered), [filtered]);
+
   // timeline
-  const daily = useMemo(() => dailyAgg(filtered), [filtered]);
-  const hourly = useMemo(() => hourlyAgg(filtered), [filtered]);
-  const useHourly = daily.length <= 3;
-  const timeline = useHourly ? hourly : daily;
+  const dailyTl = useMemo(() => timelineAgg(filtered, "daily"), [filtered]);
+  const hourlyTl = useMemo(() => timelineAgg(filtered, "hourly"), [filtered]);
+  const useHourly = dailyTl.slots.length <= 3;
+  const timeline = useHourly ? hourlyTl : dailyTl;
 
   // ── Shared tooltip style ─────────────────────────
 
@@ -412,55 +448,46 @@ export default function AnalyticsPage() {
 
   // ── Chart options ────────────────────────────────
 
-  const volumeOpt = useMemo<echarts.EChartsOption>(
-    () => ({
+  const volumeOpt = useMemo<echarts.EChartsOption>(() => {
+    const { slots, models } = timeline;
+    // Stable color per model based on allModels order
+    const modelColorMap = new Map<string, string>();
+    allModels.forEach((m, i) => modelColorMap.set(m.model, PALETTE[i % PALETTE.length]));
+    models.forEach((m, i) => {
+      if (!modelColorMap.has(m)) modelColorMap.set(m, PALETTE[i % PALETTE.length]);
+    });
+
+    return {
       tooltip: { trigger: "axis", ...tip },
-      grid: { left: 50, right: 16, top: 16, bottom: 28 },
+      legend: {
+        data: models,
+        textStyle: { color: colors.textSecondary, fontSize: 11 },
+        top: 0,
+        type: "scroll",
+        pageTextStyle: { color: colors.textSecondary },
+      },
+      grid: { left: 50, right: 16, top: 32, bottom: 28 },
       xAxis: {
         type: "category",
-        data: timeline.map((d) =>
-          "date" in d ? (d as { date: string }).date.slice(5) : (d as { hour: string }).hour,
-        ),
+        data: slots.map((s) => s.label),
         ...axBase,
       },
       yAxis: { type: "value", ...axBase },
-      series: [
-        {
-          type: "bar",
-          data: timeline.map((d) => d.count),
-          itemStyle: { color: colors.accent, borderRadius: [3, 3, 0, 0] },
+      series: models.map((model) => ({
+        name: model,
+        type: "bar" as const,
+        stack: "vol",
+        data: slots.map((s) => s.byModel.get(model) ?? 0),
+        itemStyle: {
+          color: selectedModel
+            ? model === selectedModel
+              ? modelColorMap.get(model)!
+              : colors.border
+            : modelColorMap.get(model)!,
         },
-      ],
-    }),
-    [timeline, colors, tip, axBase],
-  );
-
-  const pieOpt = useMemo<echarts.EChartsOption>(
-    () => ({
-      tooltip: { trigger: "item", ...tip },
-      series: [
-        {
-          type: "pie",
-          radius: ["40%", "72%"],
-          itemStyle: { borderColor: "transparent", borderWidth: 2 },
-          label: { color: colors.text, fontSize: 11, formatter: "{b}\n{d}%" },
-          data: allModels.map((m, i) => ({
-            name: m.model,
-            value: m.count,
-            itemStyle: {
-              color:
-                selectedModel === m.model
-                  ? colors.accent
-                  : selectedModel
-                    ? colors.border
-                    : PALETTE[i % PALETTE.length],
-            },
-          })),
-        },
-      ],
-    }),
-    [allModels, colors, selectedModel, tip],
-  );
+      })),
+    };
+  }, [timeline, allModels, colors, selectedModel, tip, axBase]);
 
   const tpsOpt = useMemo<echarts.EChartsOption>(() => {
     const h = Math.max(200, fModels.length * 40);
@@ -563,10 +590,48 @@ export default function AnalyticsPage() {
     } as echarts.EChartsOption & { _h: number };
   }, [fModels, colors, tip, axBase, t]);
 
+  const userTokenOpt = useMemo<echarts.EChartsOption>(() => {
+    const h = Math.max(200, fUsers.length * 40);
+    return {
+      tooltip: { trigger: "axis", ...tip },
+      legend: {
+        data: [t("analytics.inputTokens"), t("analytics.outputTokens")],
+        textStyle: { color: colors.textSecondary, fontSize: 11 },
+        top: 0,
+      },
+      grid: { left: 100, right: 24, top: 28, bottom: 8 },
+      xAxis: { type: "value", ...axBase },
+      yAxis: {
+        type: "category",
+        data: fUsers.map((u) => truncLabel(u.user, 14)),
+        ...axBase,
+        inverse: true,
+      },
+      series: [
+        {
+          name: t("analytics.inputTokens"),
+          type: "bar",
+          stack: "tok",
+          data: fUsers.map((u) => u.inputTokens),
+          itemStyle: { color: colors.accent },
+        },
+        {
+          name: t("analytics.outputTokens"),
+          type: "bar",
+          stack: "tok",
+          data: fUsers.map((u) => u.outputTokens),
+          itemStyle: { color: colors.success },
+        },
+      ],
+      _h: h,
+    } as echarts.EChartsOption & { _h: number };
+  }, [fUsers, colors, tip, axBase, t]);
+
   // ── Click handlers ───────────────────────────────
 
   const onModelClick = useCallback((p: echarts.ECElementEvent) => {
-    if (p.name) setSelectedModel((prev) => (prev === p.name ? null : p.name));
+    const model = p.seriesName || p.name;
+    if (model) setSelectedModel((prev) => (prev === model ? null : model));
   }, []);
 
   const onBarClick = useCallback(
@@ -666,11 +731,7 @@ export default function AnalyticsPage() {
                 title={useHourly ? t("analytics.requestVolumeHourly") : t("analytics.requestVolumeDaily")}
                 span={2}
               >
-                <EChart option={volumeOpt} height={240} />
-              </ChartCard>
-
-              <ChartCard title={t("analytics.modelDistribution")}>
-                <EChart option={pieOpt} height={300} onChartClick={onModelClick} />
+                <EChart option={volumeOpt} height={280} onChartClick={onModelClick} />
               </ChartCard>
 
               <ChartCard title={t("analytics.avgTpsByModel")}>
@@ -694,6 +755,13 @@ export default function AnalyticsPage() {
                   option={tokenOpt}
                   height={Math.max(220, fModels.length * 40)}
                   onChartClick={onBarClick}
+                />
+              </ChartCard>
+
+              <ChartCard title={t("analytics.tokenUsageByUser")} span={2}>
+                <EChart
+                  option={userTokenOpt}
+                  height={Math.max(220, fUsers.length * 40)}
                 />
               </ChartCard>
             </div>

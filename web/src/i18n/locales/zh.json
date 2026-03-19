@@ -83,6 +83,7 @@
     "avgTpsByModel": "各模型平均 TPS",
     "avgTtftByModel": "各模型平均 TTFT",
     "tokenUsageByModel": "各模型 Token 使用量",
+    "tokenUsageByUser": "各用户 Token 消耗",
     "inputTokens": "输入 Token",
     "outputTokens": "输出 Token",
     "noData": "暂无数据。"

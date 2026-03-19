@@ -83,6 +83,7 @@
     "avgTpsByModel": "Avg TPS by Model",
     "avgTtftByModel": "Avg TTFT by Model",
     "tokenUsageByModel": "Token Usage by Model",
+    "tokenUsageByUser": "Token Usage by User",
     "inputTokens": "Input Tokens",
     "outputTokens": "Output Tokens",
     "noData": "No data available."
