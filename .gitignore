@@ -1,7 +1,9 @@
 /target
 /certs
 /config.yml
-/routes.json
+/requests.csv
+/logs
+/.claude/projects
 
 # web
 /web/node_modules

@@ -7,12 +7,7 @@ const MIN_PANEL = 320;
 const MAX_PANEL = 960;
 const DEFAULT_PANEL = 520;
 
-interface Props {
-  view: "monitor" | "routes";
-  onViewChange: (v: "monitor" | "routes") => void;
-}
-
-export default function Dashboard({ view, onViewChange }: Props) {
+export default function Dashboard() {
   const { requests, connected, clear } = useEvents();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL);
@@ -53,7 +48,7 @@ export default function Dashboard({ view, onViewChange }: Props) {
 
   return (
     <div className="app">
-      <Header view={view} onViewChange={onViewChange}>
+      <Header>
         <span
           className={`status ${connected ? "connected" : "disconnected"}`}
         >

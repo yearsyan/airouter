@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::fs;
 
 const DEFAULT_UPSTREAM_BASE_URL: &str = "https://open.bigmodel.cn/api/anthropic";
@@ -18,6 +18,7 @@ const DEFAULT_KEY_FILE: &str = "key.pem";
 
 #[derive(Debug)]
 pub struct Config {
+    pub config_path: PathBuf,
     pub listen_addr: SocketAddr,
     pub upstream_base_url: String,
     pub upstream_model: Option<String>,
@@ -25,17 +26,26 @@ pub struct Config {
     /// "authorization" (default) or "x-api-key"
     pub auth_header: String,
     pub anthropic_version: String,
+    pub tls_enabled: bool,
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
+    pub routes: Vec<ModelRoute>,
+    pub access_keys: Vec<AccessKey>,
+    pub log_dir: PathBuf,
 }
 
 impl Config {
     pub fn from_yaml_file(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let content = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
+        let config_path = resolve_config_path(path)?;
+        let config_dir = config_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        let content = std::fs::read_to_string(&config_path)
+            .with_context(|| format!("failed to read {}", config_path.display()))?;
         let raw: RawConfig = serde_yaml::from_str(&content)
-            .with_context(|| format!("failed to parse {}", path.display()))?;
+            .with_context(|| format!("failed to parse {}", config_path.display()))?;
 
         let listen_ip: IpAddr = raw
             .server
@@ -44,7 +54,9 @@ impl Config {
             .parse()
             .context("invalid server.listen_addr")?;
         let port = raw.server.port.unwrap_or(DEFAULT_PORT);
-        let cert_dir = PathBuf::from(
+        let tls_enabled = raw.tls.enabled.unwrap_or(true);
+        let cert_dir = resolve_relative_to(
+            &config_dir,
             raw.tls
                 .cert_dir
                 .unwrap_or_else(|| DEFAULT_CERT_DIR.to_string()),
@@ -61,6 +73,7 @@ impl Config {
         );
 
         Ok(Self {
+            config_path,
             listen_addr: SocketAddr::new(listen_ip, port),
             upstream_base_url: raw
                 .upstream
@@ -68,10 +81,7 @@ impl Config {
                 .unwrap_or_else(|| DEFAULT_UPSTREAM_BASE_URL.to_string())
                 .trim_end_matches('/')
                 .to_string(),
-            upstream_model: raw
-                .upstream
-                .model
-                .filter(|value| !value.trim().is_empty()),
+            upstream_model: raw.upstream.model.filter(|value| !value.trim().is_empty()),
             api_key: raw
                 .upstream
                 .api_key
@@ -84,10 +94,35 @@ impl Config {
                 .upstream
                 .anthropic_version
                 .unwrap_or_else(|| DEFAULT_ANTHROPIC_VERSION.to_string()),
+            tls_enabled,
             cert_path,
             key_path,
+            routes: raw.routes,
+            access_keys: raw.access_keys,
+            log_dir: resolve_relative_to(
+                &config_dir,
+                raw.server.log_dir.unwrap_or_else(|| ".".to_string()),
+            ),
         })
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelRoute {
+    pub input_model: String,
+    pub upstream_url: String,
+    pub output_model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// "authorization" (default, sends Bearer) or "x-api-key"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_header: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccessKey {
+    pub name: String,
+    pub key: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -98,12 +133,17 @@ struct RawConfig {
     upstream: UpstreamConfig,
     #[serde(default)]
     tls: TlsConfig,
+    #[serde(default)]
+    routes: Vec<ModelRoute>,
+    #[serde(default)]
+    access_keys: Vec<AccessKey>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 struct ServerConfig {
     listen_addr: Option<String>,
     port: Option<u16>,
+    log_dir: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -117,9 +157,29 @@ struct UpstreamConfig {
 
 #[derive(Debug, Default, Deserialize)]
 struct TlsConfig {
+    enabled: Option<bool>,
     cert_dir: Option<String>,
     cert_file: Option<String>,
     key_file: Option<String>,
+}
+
+fn resolve_config_path(path: &Path) -> Result<PathBuf> {
+    if path.is_absolute() {
+        Ok(path.to_path_buf())
+    } else {
+        Ok(std::env::current_dir()
+            .context("failed to resolve current working directory")?
+            .join(path))
+    }
+}
+
+fn resolve_relative_to(base_dir: &Path, path: impl Into<PathBuf>) -> PathBuf {
+    let path = path.into();
+    if path.is_absolute() {
+        path
+    } else {
+        base_dir.join(path)
+    }
 }
 
 pub async fn ensure_self_signed_cert(cert_path: &Path, key_path: &Path) -> Result<()> {
@@ -153,4 +213,74 @@ pub async fn ensure_self_signed_cert(cert_path: &Path, key_path: &Path) -> Resul
         .with_context(|| format!("failed to write {}", key_path.display()))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn tls_enabled_defaults_to_true() {
+        let raw: RawConfig = serde_yaml::from_str(
+            r#"
+server:
+  port: 8080
+"#,
+        )
+        .expect("config should parse");
+
+        let tls_enabled = raw.tls.enabled.unwrap_or(true);
+        assert!(tls_enabled);
+    }
+
+    #[test]
+    fn tls_enabled_can_be_disabled() {
+        let raw: RawConfig = serde_yaml::from_str(
+            r#"
+tls:
+  enabled: false
+"#,
+        )
+        .expect("config should parse");
+
+        assert_eq!(raw.tls.enabled, Some(false));
+    }
+
+    #[test]
+    fn relative_paths_follow_config_file_directory() {
+        let test_dir = std::env::temp_dir().join(format!(
+            "airouter-config-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time should be monotonic")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&test_dir).expect("test dir should be created");
+
+        let config_path = test_dir.join("nested").join("config.yml");
+        std::fs::create_dir_all(config_path.parent().expect("config parent should exist"))
+            .expect("config parent should be created");
+        std::fs::write(
+            &config_path,
+            r#"
+server:
+  log_dir: logs
+tls:
+  cert_dir: certs
+"#,
+        )
+        .expect("config should be written");
+
+        let config = Config::from_yaml_file(&config_path).expect("config should load");
+        let config_dir = config_path.parent().expect("config should have parent");
+
+        assert_eq!(config.config_path, config_path);
+        assert_eq!(config.cert_path, config_dir.join("certs").join("cert.pem"));
+        assert_eq!(config.key_path, config_dir.join("certs").join("key.pem"));
+        assert!(config.routes.is_empty());
+        assert_eq!(config.log_dir, config_dir.join("logs"));
+
+        std::fs::remove_dir_all(test_dir).expect("test dir should be removed");
+    }
 }

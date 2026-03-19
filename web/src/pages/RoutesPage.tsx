@@ -2,25 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Header } from "../App";
 import type { ModelRoute } from "../types";
 
-interface Props {
-  view: "monitor" | "routes";
-  onViewChange: (v: "monitor" | "routes") => void;
-}
-
-const EMPTY_ROUTE: ModelRoute = {
-  input_model: "",
-  upstream_url: "",
-  output_model: "",
-  api_key: "",
-  auth_header: "",
-};
-
-export default function RoutesPage({ view, onViewChange }: Props) {
+export default function RoutesPage() {
   const [routes, setRoutes] = useState<ModelRoute[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<number | "new" | null>(null);
-  const [draft, setDraft] = useState<ModelRoute>(EMPTY_ROUTE);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchRoutes = useCallback(async () => {
@@ -41,73 +25,14 @@ export default function RoutesPage({ view, onViewChange }: Props) {
     fetchRoutes();
   }, [fetchRoutes]);
 
-  const saveRoutes = async (next: ModelRoute[]) => {
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/routes", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routes: next }),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`HTTP ${res.status}: ${body}`);
-      }
-      setRoutes(next);
-      setEditing(null);
-    } catch (e) {
-      setError(`Failed to save routes: ${e}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const startEdit = (index: number) => {
-    setEditing(index);
-    setDraft({ ...routes[index] });
-  };
-
-  const startAdd = () => {
-    setEditing("new");
-    setDraft({ ...EMPTY_ROUTE });
-  };
-
-  const cancel = () => setEditing(null);
-
-  const save = () => {
-    if (!draft.input_model || !draft.upstream_url || !draft.output_model) return;
-    const cleaned = { ...draft };
-    if (!cleaned.api_key) delete cleaned.api_key;
-    if (!cleaned.auth_header) delete cleaned.auth_header;
-
-    if (editing === "new") {
-      saveRoutes([...routes, cleaned]);
-    } else if (typeof editing === "number") {
-      const next = [...routes];
-      next[editing] = cleaned;
-      saveRoutes(next);
-    }
-  };
-
-  const remove = (index: number) => {
-    saveRoutes(routes.filter((_, i) => i !== index));
-  };
-
   return (
     <div className="app">
-      <Header view={view} onViewChange={onViewChange} />
+      <Header />
 
       <div className="routes-page">
         <div className="routes-header">
           <h2>Model Routes</h2>
-          <button
-            className="btn-primary"
-            onClick={startAdd}
-            disabled={editing !== null}
-          >
-            + Add Route
-          </button>
+          <span className="routes-readonly">Configured via config.yml</span>
         </div>
 
         {error && <div className="routes-error">{error}</div>}
@@ -123,62 +48,25 @@ export default function RoutesPage({ view, onViewChange }: Props) {
                 <th>Upstream URL</th>
                 <th>API Key</th>
                 <th>Auth</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {routes.map((route, i) =>
-                editing === i ? (
-                  <EditRow
-                    key={i}
-                    draft={draft}
-                    onChange={setDraft}
-                    onSave={save}
-                    onCancel={cancel}
-                    saving={saving}
-                  />
-                ) : (
-                  <tr key={i}>
-                    <td className="cell-mono">{route.input_model}</td>
-                    <td className="cell-mono">{route.output_model}</td>
-                    <td className="cell-mono cell-url">{route.upstream_url}</td>
-                    <td className="cell-mono">
-                      {route.api_key ? "****" : "-"}
-                    </td>
-                    <td className="cell-mono">
-                      {route.auth_header || "authorization"}
-                    </td>
-                    <td className="cell-actions">
-                      <button
-                        className="btn-sm"
-                        onClick={() => startEdit(i)}
-                        disabled={editing !== null}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="btn-sm btn-danger"
-                        onClick={() => remove(i)}
-                        disabled={editing !== null}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ),
-              )}
-              {editing === "new" && (
-                <EditRow
-                  draft={draft}
-                  onChange={setDraft}
-                  onSave={save}
-                  onCancel={cancel}
-                  saving={saving}
-                />
-              )}
-              {routes.length === 0 && editing === null && (
+              {routes.map((route, i) => (
+                <tr key={i}>
+                  <td className="cell-mono">{route.input_model}</td>
+                  <td className="cell-mono">{route.output_model}</td>
+                  <td className="cell-mono cell-url">{route.upstream_url}</td>
+                  <td className="cell-mono">
+                    {route.api_key ? "****" : "-"}
+                  </td>
+                  <td className="cell-mono">
+                    {route.auth_header || "authorization"}
+                  </td>
+                </tr>
+              ))}
+              {routes.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-sm">
+                  <td colSpan={5} className="empty-sm">
                     No routes configured. All requests go to the default
                     upstream.
                   </td>
@@ -189,78 +77,5 @@ export default function RoutesPage({ view, onViewChange }: Props) {
         )}
       </div>
     </div>
-  );
-}
-
-function EditRow({
-  draft,
-  onChange,
-  onSave,
-  onCancel,
-  saving,
-}: {
-  draft: ModelRoute;
-  onChange: (r: ModelRoute) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  saving: boolean;
-}) {
-  const set = (field: keyof ModelRoute, value: string) =>
-    onChange({ ...draft, [field]: value });
-
-  return (
-    <tr className="edit-row">
-      <td>
-        <input
-          className="input"
-          placeholder="claude-3-opus"
-          value={draft.input_model}
-          onChange={(e) => set("input_model", e.target.value)}
-        />
-      </td>
-      <td>
-        <input
-          className="input"
-          placeholder="glm-4-plus"
-          value={draft.output_model}
-          onChange={(e) => set("output_model", e.target.value)}
-        />
-      </td>
-      <td>
-        <input
-          className="input"
-          placeholder="https://api.example.com"
-          value={draft.upstream_url}
-          onChange={(e) => set("upstream_url", e.target.value)}
-        />
-      </td>
-      <td>
-        <input
-          className="input"
-          type="password"
-          placeholder="optional"
-          value={draft.api_key ?? ""}
-          onChange={(e) => set("api_key", e.target.value)}
-        />
-      </td>
-      <td>
-        <select
-          className="input"
-          value={draft.auth_header || "authorization"}
-          onChange={(e) => set("auth_header", e.target.value)}
-        >
-          <option value="authorization">Authorization</option>
-          <option value="x-api-key">x-api-key</option>
-        </select>
-      </td>
-      <td className="cell-actions">
-        <button className="btn-sm btn-save" onClick={onSave} disabled={saving}>
-          Save
-        </button>
-        <button className="btn-sm" onClick={onCancel}>
-          Cancel
-        </button>
-      </td>
-    </tr>
   );
 }

@@ -10,7 +10,7 @@ use axum::{
     },
 };
 use bytes::BytesMut;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use futures_util::StreamExt;
 use serde_json::{Value, json};
 use tracing::{error, info};
@@ -31,6 +31,48 @@ pub async fn proxy_messages(
     let request_id = Uuid::new_v4().to_string();
     let request_time = Utc::now();
     let started_at = std::time::Instant::now();
+
+    // Auth check
+    let key_name = if !state.config.access_keys.is_empty() {
+        match extract_client_key(&headers) {
+            None => {
+                return build_json_response(
+                    StatusCode::UNAUTHORIZED,
+                    json!({
+                        "type": "error",
+                        "error": {
+                            "type": "authentication_error",
+                            "message": "missing api key"
+                        }
+                    }),
+                );
+            }
+            Some(key) => match state.config.access_keys.iter().find(|ak| ak.key == key) {
+                None => {
+                    return build_json_response(
+                        StatusCode::UNAUTHORIZED,
+                        json!({
+                            "type": "error",
+                            "error": {
+                                "type": "authentication_error",
+                                "message": "invalid api key"
+                            }
+                        }),
+                    );
+                }
+                Some(ak) => ak.name.clone(),
+            },
+        }
+    } else {
+        String::new()
+    };
+
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
     let request_json = serde_json::from_slice::<Value>(&body).ok();
 
     let input_model = request_json
@@ -47,10 +89,7 @@ pub async fn proxy_messages(
         .unwrap_or(false);
 
     // Look up model route
-    let route = {
-        let routes = state.routes.read().await;
-        crate::routes::find_route(&routes, &input_model)
-    };
+    let route = crate::routes::find_route(&state.config.routes, &input_model);
 
     let (upstream_url, output_model, api_key, auth_header) = match &route {
         Some(r) => (
@@ -91,8 +130,19 @@ pub async fn proxy_messages(
         input_model = %input_model,
         output_model = %output_model,
         request_time = %request_time.to_rfc3339(),
+        key_name = %key_name,
         "received request"
     );
+
+    let request_data = json!({
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": headers_to_json(&headers),
+        "body": body_to_json(&body),
+        "stream": is_stream,
+        "input_model": input_model,
+        "output_model": output_model
+    });
 
     broadcast_event(
         &state,
@@ -100,20 +150,17 @@ pub async fn proxy_messages(
             kind: "request.received",
             timestamp: request_time,
             request_id: request_id.clone(),
-            data: json!({
-                "method": "POST",
-                "path": "/v1/messages",
-                "headers": headers_to_json(&headers),
-                "body": body_to_json(&body),
-                "stream": is_stream,
-                "input_model": input_model,
-                "output_model": output_model
-            }),
+            data: request_data.clone(),
         },
     );
 
     let mut upstream_headers = filter_request_headers(&headers);
-    apply_default_headers(&state, &mut upstream_headers, api_key.as_deref(), &auth_header);
+    apply_default_headers(
+        &state,
+        &mut upstream_headers,
+        api_key.as_deref(),
+        &auth_header,
+    );
 
     let upstream_response = match state
         .client
@@ -135,6 +182,39 @@ pub async fn proxy_messages(
                 started_at.elapsed().as_millis(),
                 &error_body,
             );
+            crate::csv_log::append_log(
+                &state.config.log_dir,
+                &crate::csv_log::RequestLog {
+                    time: request_time.to_rfc3339(),
+                    request_id: request_id.clone(),
+                    key_name: key_name.clone(),
+                    input_model: input_model.clone(),
+                    output_model: output_model.clone(),
+                    ttft_ms: 0,
+                    tps: 0.0,
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    user_agent: user_agent.clone(),
+                },
+            );
+            crate::csv_log::write_detail_log(
+                &state.config.log_dir,
+                &request_id,
+                &json!({
+                    "id": request_id,
+                    "timestamp": request_time.to_rfc3339(),
+                    "key_name": key_name,
+                    "input_model": input_model,
+                    "output_model": output_model,
+                    "stream": is_stream,
+                    "user_agent": user_agent,
+                    "request_data": request_data,
+                    "response_data": {
+                        "error": error_body,
+                        "duration_ms": started_at.elapsed().as_millis() as u64
+                    }
+                }),
+            );
             return build_json_response(StatusCode::BAD_GATEWAY, error_body);
         }
     };
@@ -146,20 +226,32 @@ pub async fn proxy_messages(
         proxy_streaming_response(
             state,
             request_id,
+            request_time,
             started_at,
             status,
             response_headers,
             upstream_response,
+            input_model,
+            output_model,
+            key_name,
+            user_agent,
+            request_data,
         )
         .await
     } else {
         proxy_json_response(
             state,
             request_id,
+            request_time,
             started_at,
             status,
             response_headers,
             upstream_response,
+            input_model,
+            output_model,
+            key_name,
+            user_agent,
+            request_data,
         )
         .await
     }
@@ -168,10 +260,16 @@ pub async fn proxy_messages(
 async fn proxy_json_response(
     state: AppState,
     request_id: String,
+    request_time: DateTime<Utc>,
     started_at: std::time::Instant,
     status: reqwest::StatusCode,
     response_headers: HeaderMap,
     upstream_response: reqwest::Response,
+    input_model: String,
+    output_model: String,
+    key_name: String,
+    user_agent: String,
+    request_data: Value,
 ) -> Response<Body> {
     match upstream_response.bytes().await {
         Ok(bytes) => {
@@ -182,6 +280,62 @@ async fn proxy_json_response(
                 .cloned()
                 .unwrap_or(Value::Null);
             let duration_ms = started_at.elapsed().as_millis();
+
+            let input_tokens = usage
+                .get("input_tokens")
+                .and_then(Value::as_u64)
+                .unwrap_or(0);
+            let output_tokens = usage
+                .get("output_tokens")
+                .and_then(Value::as_u64)
+                .unwrap_or(0);
+            let tps = if output_tokens > 0 && duration_ms > 0 {
+                output_tokens as f64 / (duration_ms as f64 / 1000.0)
+            } else {
+                0.0
+            };
+
+            let resp_body_full = response_json.unwrap_or_else(|| {
+                Value::String(String::from_utf8_lossy(&bytes).into_owned())
+            });
+
+            crate::csv_log::append_log(
+                &state.config.log_dir,
+                &crate::csv_log::RequestLog {
+                    time: request_time.to_rfc3339(),
+                    request_id: request_id.clone(),
+                    key_name: key_name.clone(),
+                    input_model: input_model.clone(),
+                    output_model: output_model.clone(),
+                    ttft_ms: duration_ms as u64,
+                    tps,
+                    input_tokens,
+                    output_tokens,
+                    user_agent: user_agent.clone(),
+                },
+            );
+
+            crate::csv_log::write_detail_log(
+                &state.config.log_dir,
+                &request_id,
+                &json!({
+                    "id": request_id,
+                    "timestamp": request_time.to_rfc3339(),
+                    "key_name": key_name,
+                    "input_model": input_model,
+                    "output_model": output_model,
+                    "stream": false,
+                    "user_agent": user_agent,
+                    "request_data": request_data,
+                    "response_data": {
+                        "status": status.as_u16(),
+                        "headers": headers_to_json(&response_headers),
+                        "body": resp_body_full,
+                        "usage": usage,
+                        "duration_ms": duration_ms
+                    }
+                }),
+            );
 
             broadcast_event(
                 &state,
@@ -202,15 +356,44 @@ async fn proxy_json_response(
             build_response(status, &response_headers, Body::from(bytes))
         }
         Err(err) => {
+            let duration_ms = started_at.elapsed().as_millis();
             let error_body = json!({
                 "type": "upstream_read_error",
                 "message": err.to_string()
             });
-            broadcast_error(
-                &state,
+            broadcast_error(&state, &request_id, duration_ms, &error_body);
+            crate::csv_log::append_log(
+                &state.config.log_dir,
+                &crate::csv_log::RequestLog {
+                    time: request_time.to_rfc3339(),
+                    request_id: request_id.clone(),
+                    key_name: key_name.clone(),
+                    input_model: input_model.clone(),
+                    output_model: output_model.clone(),
+                    ttft_ms: 0,
+                    tps: 0.0,
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    user_agent: user_agent.clone(),
+                },
+            );
+            crate::csv_log::write_detail_log(
+                &state.config.log_dir,
                 &request_id,
-                started_at.elapsed().as_millis(),
-                &error_body,
+                &json!({
+                    "id": request_id,
+                    "timestamp": request_time.to_rfc3339(),
+                    "key_name": key_name,
+                    "input_model": input_model,
+                    "output_model": output_model,
+                    "stream": false,
+                    "user_agent": user_agent,
+                    "request_data": request_data,
+                    "response_data": {
+                        "error": error_body,
+                        "duration_ms": duration_ms as u64
+                    }
+                }),
             );
             build_json_response(StatusCode::BAD_GATEWAY, error_body)
         }
@@ -220,10 +403,16 @@ async fn proxy_json_response(
 async fn proxy_streaming_response(
     state: AppState,
     request_id: String,
+    request_time: DateTime<Utc>,
     started_at: std::time::Instant,
     status: reqwest::StatusCode,
     response_headers: HeaderMap,
     upstream_response: reqwest::Response,
+    input_model: String,
+    output_model: String,
+    key_name: String,
+    user_agent: String,
+    request_data: Value,
 ) -> Response<Body> {
     let mut upstream_stream = upstream_response.bytes_stream();
     let stream_state = state.clone();
@@ -267,7 +456,7 @@ async fn proxy_streaming_response(
                     error!(?err, request_id = %stream_request_id, "failed to read upstream stream");
                     let duration_ms = started_at.elapsed().as_millis();
                     let body_text = String::from_utf8_lossy(&collected).into_owned();
-                    let (_usage, content_preview, content_blocks) = summarize_sse(&body_text);
+                    let (usage, content_preview, content_blocks) = summarize_sse(&body_text);
                     broadcast_error(
                         &stream_state,
                         &stream_request_id,
@@ -279,6 +468,51 @@ async fn proxy_streaming_response(
                             "content_blocks": content_blocks
                         }),
                     );
+
+                    let raw_ttft = first_chunk_time_clone.load(std::sync::atomic::Ordering::Relaxed);
+                    let ttft_ms = if raw_ttft == u64::MAX { 0 } else { raw_ttft };
+                    let input_tokens = usage.get("input_tokens").and_then(Value::as_u64).unwrap_or(0);
+                    let output_tokens = usage.get("output_tokens").and_then(Value::as_u64).unwrap_or(0);
+                    let gen_ms = (duration_ms as u64).saturating_sub(ttft_ms).max(1);
+                    let tps = if output_tokens > 0 {
+                        output_tokens as f64 / (gen_ms as f64 / 1000.0)
+                    } else {
+                        0.0
+                    };
+                    crate::csv_log::append_log(&stream_state.config.log_dir, &crate::csv_log::RequestLog {
+                        time: request_time.to_rfc3339(),
+                        request_id: stream_request_id.clone(),
+                        key_name: key_name.clone(),
+                        input_model: input_model.clone(),
+                        output_model: output_model.clone(),
+                        ttft_ms,
+                        tps,
+                        input_tokens,
+                        output_tokens,
+                        user_agent: user_agent.clone(),
+                    });
+
+                    crate::csv_log::write_detail_log(&stream_state.config.log_dir, &stream_request_id, &json!({
+                        "id": stream_request_id,
+                        "timestamp": request_time.to_rfc3339(),
+                        "key_name": key_name,
+                        "input_model": input_model,
+                        "output_model": output_model,
+                        "stream": true,
+                        "user_agent": user_agent,
+                        "request_data": request_data,
+                        "response_data": {
+                            "status": status.as_u16(),
+                            "headers": headers_to_json(&stream_headers),
+                            "content_blocks": content_blocks,
+                            "stream_text": content_preview,
+                            "usage": usage,
+                            "duration_ms": duration_ms,
+                            "ttft_ms": ttft_ms,
+                            "error": err.to_string()
+                        }
+                    }));
+
                     completed.store(true, std::sync::atomic::Ordering::Relaxed);
                     yield Err::<Bytes, io::Error>(io::Error::other(err.to_string()));
                     return;
@@ -316,6 +550,49 @@ async fn proxy_streaming_response(
         let body_text = String::from_utf8_lossy(&collected).into_owned();
         let (usage, content_preview, content_blocks) = summarize_sse(&body_text);
 
+        let input_tokens = usage.get("input_tokens").and_then(Value::as_u64).unwrap_or(0);
+        let output_tokens = usage.get("output_tokens").and_then(Value::as_u64).unwrap_or(0);
+        let gen_ms = (duration_ms as u64).saturating_sub(ttft_ms).max(1);
+        let tps = if output_tokens > 0 {
+            output_tokens as f64 / (gen_ms as f64 / 1000.0)
+        } else {
+            0.0
+        };
+
+        crate::csv_log::append_log(&stream_state.config.log_dir, &crate::csv_log::RequestLog {
+            time: request_time.to_rfc3339(),
+            request_id: stream_request_id.clone(),
+            key_name: key_name.clone(),
+            input_model: input_model.clone(),
+            output_model: output_model.clone(),
+            ttft_ms,
+            tps,
+            input_tokens,
+            output_tokens,
+            user_agent: user_agent.clone(),
+        });
+
+        crate::csv_log::write_detail_log(&stream_state.config.log_dir, &stream_request_id, &json!({
+            "id": stream_request_id,
+            "timestamp": request_time.to_rfc3339(),
+            "key_name": key_name,
+            "input_model": input_model,
+            "output_model": output_model,
+            "stream": true,
+            "user_agent": user_agent,
+            "request_data": request_data,
+            "response_data": {
+                "status": status.as_u16(),
+                "headers": headers_to_json(&stream_headers),
+                "body": body_text,
+                "stream_text": content_preview,
+                "content_blocks": content_blocks,
+                "usage": usage,
+                "duration_ms": duration_ms,
+                "ttft_ms": ttft_ms
+            }
+        }));
+
         broadcast_event(
             &stream_state,
             MonitorEvent {
@@ -339,6 +616,22 @@ async fn proxy_streaming_response(
     };
 
     build_response(status, &response_headers, Body::from_stream(stream))
+}
+
+fn extract_client_key(headers: &HeaderMap) -> Option<String> {
+    if let Some(auth) = headers.get("authorization") {
+        if let Ok(s) = auth.to_str() {
+            if let Some(key) = s.strip_prefix("Bearer ") {
+                return Some(key.to_string());
+            }
+        }
+    }
+    if let Some(key) = headers.get("x-api-key") {
+        if let Ok(s) = key.to_str() {
+            return Some(s.to_string());
+        }
+    }
+    None
 }
 
 fn filter_request_headers(headers: &HeaderMap) -> HeaderMap {
@@ -518,8 +811,7 @@ fn summarize_sse(body: &str) -> (Value, String, Value) {
                             block["thinking"] = Value::String(cur_thinking.clone());
                         }
                         "tool_use" => {
-                            block["input"] = serde_json::from_str(&cur_json)
-                                .unwrap_or(Value::Null);
+                            block["input"] = serde_json::from_str(&cur_json).unwrap_or(Value::Null);
                         }
                         _ => {}
                     }
@@ -549,10 +841,7 @@ fn truncate_str(value: &str, max_len: usize) -> String {
 fn build_response(status: reqwest::StatusCode, headers: &HeaderMap, body: Body) -> Response<Body> {
     let mut response = Response::builder().status(status.as_u16());
     for (name, value) in headers {
-        if is_hop_by_hop_header(name)
-            || *name == CONTENT_LENGTH
-            || *name == "content-encoding"
-        {
+        if is_hop_by_hop_header(name) || *name == CONTENT_LENGTH || *name == "content-encoding" {
             continue;
         }
         response = response.header(name, value);

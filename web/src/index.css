@@ -120,6 +120,7 @@ body {
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s;
+  text-decoration: none;
 }
 
 .nav-btn:hover {
@@ -1216,6 +1217,12 @@ tbody tr.selected {
 .routes-header h2 {
   font-size: 18px;
   font-weight: 600;
+}
+
+.routes-readonly {
+  font-size: 13px;
+  color: var(--color-muted);
+  font-style: italic;
 }
 
 .routes-error {

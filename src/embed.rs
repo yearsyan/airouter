@@ -27,7 +27,11 @@ pub async fn static_handler(uri: Uri) -> Response {
 
 fn file_response(path: &str, data: &[u8]) -> Response {
     let mime = mime_type(path);
-    let mut resp = (StatusCode::OK, [(header::CONTENT_TYPE, mime)], data.to_vec())
+    let mut resp = (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, mime)],
+        data.to_vec(),
+    )
         .into_response();
 
     // Immutable cache for hashed assets produced by Vite

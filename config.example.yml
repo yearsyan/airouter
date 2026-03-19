@@ -1,6 +1,7 @@
 server:
   listen_addr: 0.0.0.0
   port: 443
+  log_dir: logs          # directory for requests.csv (default: config file directory)
 
 upstream:
   base_url: https://open.bigmodel.cn/api/anthropic
@@ -9,6 +10,22 @@ upstream:
   anthropic_version: "2023-06-01"
 
 tls:
+  enabled: true
   cert_dir: certs
   cert_file: cert.pem
   key_file: key.pem
+
+# Model routing rules
+# routes:
+#   - input_model: claude-sonnet-4-20250514
+#     output_model: glm-4-plus
+#     upstream_url: https://open.bigmodel.cn/api/anthropic
+#     api_key: "optional-override-key"
+#     auth_header: authorization    # or "x-api-key"
+
+# Client authentication - leave empty or remove to disable auth
+# access_keys:
+#   - name: alice
+#     key: "sk-airouter-alice-key"
+#   - name: bob
+#     key: "sk-airouter-bob-key"
