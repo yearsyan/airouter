@@ -22,6 +22,12 @@ use crate::{
 };
 
 const MAX_MONITOR_BODY: usize = 128 * 1024;
+const BILLING_HEADER_PREFIX: &str = "x-anthropic-billing-header";
+const SDK_ENTRYPOINT: &str = "cc_entrypoint=sdk-cli;";
+const CLI_ENTRYPOINT: &str = "cc_entrypoint=cli;";
+const CLAUDE_AGENT_PROMPT_PREFIX: &str = "You are";
+const CLAUDE_PROMPT_MARKER: &str = "Claude";
+const CLAUDE_CODE_SYSTEM_PROMPT: &str = "You are Claude Code, Anthropic's official CLI for Claude.";
 
 pub async fn proxy_messages(
     State(state): State<AppState>,
@@ -109,17 +115,8 @@ pub async fn proxy_messages(
         }
     };
 
-    // Replace model name in body if routed
-    let upstream_body = if input_model != output_model {
-        if let Some(mut json) = request_json.clone() {
-            json["model"] = Value::String(output_model.clone());
-            Bytes::from(json.to_string())
-        } else {
-            body.clone()
-        }
-    } else {
-        body.clone()
-    };
+    let upstream_body =
+        build_upstream_body(&body, request_json.as_ref(), &input_model, &output_model);
 
     info!(
         request_id = %request_id,
@@ -292,9 +289,8 @@ async fn proxy_json_response(
                 0.0
             };
 
-            let resp_body_full = response_json.unwrap_or_else(|| {
-                Value::String(String::from_utf8_lossy(&bytes).into_owned())
-            });
+            let resp_body_full = response_json
+                .unwrap_or_else(|| Value::String(String::from_utf8_lossy(&bytes).into_owned()));
 
             crate::csv_log::append_log(
                 &state.config.log_dir,
@@ -660,6 +656,83 @@ fn resolve_upstream(
     }
 }
 
+fn build_upstream_body(
+    body: &Bytes,
+    request_json: Option<&Value>,
+    input_model: &str,
+    output_model: &str,
+) -> Bytes {
+    let Some(mut json) = request_json.cloned() else {
+        return body.clone();
+    };
+
+    let mut changed = false;
+    if input_model != output_model {
+        json["model"] = Value::String(output_model.to_string());
+        changed = true;
+    }
+    changed |= rewrite_system_prompts(&mut json);
+
+    if changed {
+        Bytes::from(json.to_string())
+    } else {
+        body.clone()
+    }
+}
+
+fn rewrite_system_prompts(json: &mut Value) -> bool {
+    match json.get_mut("system") {
+        Some(Value::Array(blocks)) => {
+            let mut changed = false;
+            for block in blocks {
+                changed |= rewrite_system_block(block);
+            }
+            changed
+        }
+        Some(Value::String(text)) => rewrite_system_text_value(text),
+        _ => false,
+    }
+}
+
+fn rewrite_system_block(block: &mut Value) -> bool {
+    let Some(text_value) = block.get_mut("text") else {
+        return false;
+    };
+    let Some(text) = text_value.as_str() else {
+        return false;
+    };
+    let Some(rewritten) = rewrite_system_text(text) else {
+        return false;
+    };
+
+    *text_value = Value::String(rewritten);
+    true
+}
+
+fn rewrite_system_text_value(text: &mut String) -> bool {
+    let Some(rewritten) = rewrite_system_text(text) else {
+        return false;
+    };
+
+    *text = rewritten;
+    true
+}
+
+fn rewrite_system_text(text: &str) -> Option<String> {
+    if text.starts_with(BILLING_HEADER_PREFIX) {
+        let rewritten = text.replacen(SDK_ENTRYPOINT, CLI_ENTRYPOINT, 1);
+        if rewritten != text {
+            return Some(rewritten);
+        }
+    }
+
+    if text.starts_with(CLAUDE_AGENT_PROMPT_PREFIX) && text.contains(CLAUDE_PROMPT_MARKER) {
+        return Some(CLAUDE_CODE_SYSTEM_PROMPT.to_string());
+    }
+
+    None
+}
+
 fn extract_client_key(headers: &HeaderMap) -> Option<String> {
     if let Some(auth) = headers.get("authorization") {
         if let Ok(s) = auth.to_str() {
@@ -906,9 +979,10 @@ fn build_json_response(status: StatusCode, body: Value) -> Response<Body> {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
     use serde_json::json;
 
-    use super::{extract_usage, summarize_sse};
+    use super::{build_upstream_body, extract_usage, summarize_sse};
 
     #[test]
     fn extracts_usage_from_message_wrapper() {
@@ -947,5 +1021,73 @@ mod tests {
         let (usage, text, _blocks) = summarize_sse(input);
         assert_eq!(text, "Hello world");
         assert_eq!(usage, json!({"output_tokens": 34}));
+    }
+
+    #[test]
+    fn rewrites_claude_code_system_prompts_for_upstream() {
+        let request = json!({
+            "model": "claude-sonnet-4-20250514",
+            "system": [
+                {
+                    "text": "x-anthropic-billing-header: cc_version=2.1.119.ad3; cc_entrypoint=sdk-cli; cch=7ba3e;",
+                    "type": "text"
+                },
+                {
+                    "cache_control": {"type": "ephemeral"},
+                    "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+                    "type": "text"
+                },
+                {
+                    "text": "Leave this alone.",
+                    "type": "text"
+                },
+                {
+                    "text": "You are a generic assistant.",
+                    "type": "text"
+                }
+            ]
+        });
+        let body = Bytes::from(request.to_string());
+
+        let rewritten = build_upstream_body(
+            &body,
+            Some(&request),
+            "claude-sonnet-4-20250514",
+            "glm-4-plus",
+        );
+        let rewritten_json: serde_json::Value =
+            serde_json::from_slice(&rewritten).expect("rewritten body should be JSON");
+
+        assert_eq!(rewritten_json["model"], "glm-4-plus");
+        assert_eq!(
+            rewritten_json["system"][0]["text"],
+            "x-anthropic-billing-header: cc_version=2.1.119.ad3; cc_entrypoint=cli; cch=7ba3e;"
+        );
+        assert_eq!(
+            rewritten_json["system"][1]["text"],
+            "You are Claude Code, Anthropic's official CLI for Claude."
+        );
+        assert_eq!(
+            rewritten_json["system"][1]["cache_control"],
+            json!({"type": "ephemeral"})
+        );
+        assert_eq!(rewritten_json["system"][2]["text"], "Leave this alone.");
+        assert_eq!(
+            rewritten_json["system"][3]["text"],
+            "You are a generic assistant."
+        );
+    }
+
+    #[test]
+    fn preserves_unmodified_upstream_body_bytes() {
+        let request = json!({
+            "model": "same-model",
+            "messages": []
+        });
+        let body = Bytes::from(request.to_string());
+
+        let rewritten = build_upstream_body(&body, Some(&request), "same-model", "same-model");
+
+        assert_eq!(rewritten, body);
     }
 }
